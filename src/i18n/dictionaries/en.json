@@ -1244,6 +1244,8 @@
     "csvHint": "CSV table: raw amounts without formatting and ISO dates — opens in Excel and stays editable",
     "workerRequired": "Select a worker first",
     "workerRequiredHint": "Selecting a worker is required for the attendance and hours statements — the button activates after selection",
+    "noMembers": "No active members in this company — add users first from the Users page",
+    "workerPickRequired": "Pick a worker or user from the list first — the button enables after selection",
     "periodRequired": "Select a period",
     "noDeclarations": "No declarations yet — create one from the declarations page and get it approved first",
     "declarationRequired": "Select a declaration",

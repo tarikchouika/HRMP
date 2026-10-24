@@ -1244,6 +1244,8 @@
     "csvHint": "Tableau CSV : montants bruts sans format et dates ISO — s'ouvre dans Excel et reste modifiable",
     "workerRequired": "Choisir d'abord le travailleur",
     "workerRequiredHint": "Le choix du travailleur est obligatoire pour l'attestation de présence et des heures — le bouton s'active après la sélection",
+    "noMembers": "Aucun membre actif dans cette société — ajoutez d'abord des utilisateurs depuis la page Utilisateurs",
+    "workerPickRequired": "Choisissez d'abord l'ouvrier ou l'utilisateur dans la liste — le bouton s'active après la sélection",
     "periodRequired": "Choisir la période",
     "noDeclarations": "Aucune déclaration pour l'instant — créez une déclaration puis faites-la approuver",
     "declarationRequired": "Choisir une déclaration",

@@ -1,12 +1,12 @@
 {
   "name": "hrmp",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "private": true,
   "prisma": {
     "seed": "bun prisma/seeds/seed.ts"
   },
   "scripts": {
-    "dev": "bun --bun next dev -p 3000 2>&1 | tee dev.log",
+    "dev": "next dev -p 3000",
     "build": "prisma generate && node scripts/compile-render-worker.mjs && next build && node scripts/copy-standalone-assets.mjs",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",

@@ -14,13 +14,17 @@ export function verifyUrl(origin: string, refNumber: string, fileHash: string): 
  * «الوثيقة المصدرة يجب أن تصدر برابطين: pages.dev و vercel.app» — روابط مستقلة
  * حتى يبقى التحقق ممكنًا إن تعذّرت إحداها، ومعها QR يحمل الرابط الأول.
  * (إعادة التسمية 2026-10-24): البوابة الأولى صارت hrmp.pages.dev (بوابة المنصة
- * الجديدة — تخدم الخادم المرجعي نفسه)، وتليها بوابات التحقق القائمة التي
- * تظل حية. تُضبط القائمة عبر HRMP_PUBLIC_VERIFY_ORIGINS (مفصولة بفواصل؛
- * والاسم القديم FWMS_PUBLIC_VERIFY_ORIGINS يُقبل أيضًا للتوافق) وإلا فالافتراضي المعتمد. */
+ * الجديدة — تخدم الخادم المرجعي نفسه).
+ * (علاج بلاغ المالك 2026-10-25 «يظهر رابط التحقق للنسخة القديمة ولا يظهر رابط
+ * ڤيرسيل»): الثانية صارت hrmp.vercel.app — التي صارت بوابة إلى الخادم المرجعي
+ * نفسه (rewrites في next.config.ts عند VERCEL=1) فصار الرابط يتحقق من بيانات
+ * الإنتاج مباشرةً. حُذفت القديمتان fwms-dg8.pages.dev وfwms-orpin.vercel.app
+ * (الأولى تظهر في الوثائق كنطاق النسخة القديمة، والثانية لم تعد قائمة أصلًا).
+ * تُضبط القائمة عبر HRMP_PUBLIC_VERIFY_ORIGINS (مفصولة بفواصل؛ والاسم القديم
+ * FWMS_PUBLIC_VERIFY_ORIGINS يُقبل أيضًا للتوافق) وإلا فالافتراضي المعتمد. */
 export const DEFAULT_PUBLIC_VERIFY_ORIGINS = [
   "https://hrmp.pages.dev",
-  "https://fwms-dg8.pages.dev",
-  "https://fwms-orpin.vercel.app",
+  "https://hrmp.vercel.app",
 ];
 
 /** بوابات التحقق النافذة (بلا تكرار، بلا شرطة أخيرة) */

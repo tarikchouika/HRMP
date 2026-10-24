@@ -134,6 +134,35 @@ const nextConfig: NextConfig = {
       "./public/fonts/**",
     ],
   },
+  // ─── بوابة hrmp.vercel.app: تخدم الخادم المرجعي مباشرة (علاج بلاغ المالك 2026-10-25) ───
+  // «لا أستطيع تسجيل الدخول لواجهة المنصة المنشورة في ڤيرسيل» — الجذر المُثبت:
+  // نشر Vercel كان يشغّل التطبيق على لقطة SQLite مؤقتة (infra/vercel/preview.db →
+  // /tmp لكل نسخة) بكلمات مرور مستقلة عن الإنتاج ⇒ تجزئة اعتمادات موثّقة مرتين
+  // (2026-10-22 و2026-10-24) — والمالك لا يعرف كلمة اللقطة. والبنية المعتمدة
+  // أصلاً (DEPLOYMENT.md §3.2): كل البوابات العامة تخدم الخادم المرجعي
+  // (fwms.tarikc.workers.dev — الهاتف عبر النفق) حيث الإنتاج والوثائق فعليًا.
+  // هنا نطبّق نفس المعمارية على نطاق Vercel: إعادة كتابة catch-all قبل كل شيء
+  // تحوّل كل مسار إلى الأصل المرجعي — نفس الكود ونفس البيانات ونفس كلمة المرور
+  // في كل الروابط (التطبيق/pages.dev/vercel.app)، والوثائق المولّدة عبره تُحفظ
+  // في قاعدة الإنتاج فعلًا (لا تضيع في /tmp المؤقتة).
+  // ملاحظات تشغيلية:
+  //   · HRMP_REFERENCE_ORIGIN يغيّر الأصل دون تغيير كود (افتراضي: بوابة الهاتف).
+  //   · HRMP_VERCEL_DIRECT=1 يوقف البوابة ويعيد تشغيل التطبيق محليًا على Vercel
+  //     (لقطة المعاينة) — باب مفتوح لاعتماد قاعدة سحابية حقيقية مستقبلًا.
+  //   · حد حجم طلب Vercel للدوال 4.5MB: رفع وثائق هوية الباحثين (سقفها 5MB)
+  //     الأكبر من الحد يستمر عبر hrmp.pages.dev/التطبيق (حد بوابة Cloudflare أعلى).
+  //   · الهاتف يجب أن يسحب نفس إصدار المستودع (البوابة تعكس نسخته).
+  async rewrites() {
+    if (process.env.VERCEL === "1" && process.env.HRMP_VERCEL_DIRECT !== "1") {
+      const referenceOrigin = (
+        process.env.HRMP_REFERENCE_ORIGIN || "https://fwms.tarikc.workers.dev"
+      ).replace(/\/+$/, "");
+      return {
+        beforeFiles: [{ source: "/:path*", destination: `${referenceOrigin}/:path*` }],
+      };
+    }
+    return { beforeFiles: [] };
+  },
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,

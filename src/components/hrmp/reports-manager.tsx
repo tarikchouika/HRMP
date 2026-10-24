@@ -57,8 +57,21 @@ type GenerateResult = {
 type MyPayslip = { id: string; refNumber: string; periodLabel: string; netCents: number };
 type PeriodRow = { id: string; year: number; month: number; status: string };
 type PeriodDetail = { period: { id: string; status: string }; payslips: { id: string; refNumber: string; worker: { fullName: string } | null }[] };
-type WorkerRow = { userId: string; fullName: string; email: string };
+// علاج بلاغ المالك 2026-10-25: الهدف يُختار من **كل أعضاء الشركة النشطين** (من GET /api/reports)
+// لا من /api/payroll/workers — التي تتطلب payroll.approve (غائبة عن المحاسب/الكوأدمن)
+// وتقتصر على دور «عامل» فتظهر القائمة فارغة في شركات بلا عمال.
+type MemberRow = { userId: string; fullName: string; email: string; role: string };
 type DeclarationRow = { id: string; authority: string; kind: string; periodKey: string; status: string };
+
+// بطاقة الدور بجوار الاسم — يميّز المالك «عامل/مستخدم/إدارة» في قائمة الاختيار (طلب المالك)
+const roleLabelKey = (role: string) =>
+  ({
+    super_admin: "dashboard.roleSuperAdmin",
+    admin: "dashboard.roleAdmin",
+    co_admin: "dashboard.roleCoAdmin",
+    accountant: "dashboard.roleAccountant",
+    employee: "dashboard.roleEmployee",
+  })[role] ?? "dashboard.roleEmployee";
 
 const LANGS = ["ar", "fr", "en", "es"] as const;
 
@@ -93,6 +106,9 @@ export function ReportsManager() {
   const [recent, setRecent] = useState<RecentDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // دور الجلسة + أعضاء الشركة — من نفس استدعاء GET /api/reports (مصدر واحد موثوق)
+  const [role, setRole] = useState<string>("");
+  const [members, setMembers] = useState<MemberRow[]>([]);
 
   const [kind, setKind] = useState<string>("");
   const [language, setLanguage] = useState<string>(locale);
@@ -109,7 +125,6 @@ export function ReportsManager() {
   const [myPayslips, setMyPayslips] = useState<MyPayslip[]>([]);
   const [periods, setPeriods] = useState<PeriodRow[]>([]);
   const [periodPayslips, setPeriodPayslips] = useState<PeriodDetail["payslips"]>([]);
-  const [workers, setWorkers] = useState<WorkerRow[]>([]);
   const [declarations, setDeclarations] = useState<DeclarationRow[]>([]);
 
   const [payslipId, setPayslipId] = useState("");
@@ -123,9 +138,11 @@ export function ReportsManager() {
     setLoading(true);
     setError(false);
     try {
-      const data = await apiRequest<{ kinds: KindInfo[]; recent: RecentDoc[] }>("/api/reports", { cache: "no-store" });
+      const data = await apiRequest<{ kinds: KindInfo[]; recent: RecentDoc[]; role?: string; members?: MemberRow[] }>("/api/reports", { cache: "no-store" });
       setKinds(data.kinds);
       setRecent(data.recent);
+      if (typeof data.role === "string") setRole(data.role);
+      setMembers(data.members ?? []);
       if (!kind && data.kinds.length > 0) setKind(data.kinds[0].kind);
     } catch {
       setError(true);
@@ -156,10 +173,6 @@ export function ReportsManager() {
       apiRequest<{ periods: PeriodRow[] }>("/api/pay-periods", { cache: "no-store" })
         .then((d) => setPeriods(d.periods ?? []))
         .catch(() => setPeriods([]));
-    } else if (kind === "attendance_statement" || kind === "hours_statement") {
-      apiRequest<{ workers: WorkerRow[] }>("/api/payroll/workers", { cache: "no-store" })
-        .then((d) => setWorkers(d.workers ?? []))
-        .catch(() => setWorkers([]));
     } else if (kind === "compliance_report") {
       apiRequest<{ declarations: DeclarationRow[] }>("/api/declarations", { cache: "no-store" })
         .then((d) => setDeclarations(d.declarations ?? []))
@@ -188,10 +201,11 @@ export function ReportsManager() {
         return !!periodId;
       case "attendance_statement":
       case "hours_statement":
-        // العامل: نفسه تلقائيًا (لا قائمة عمال له — صلاحية payroll.approve تمنعها)
-        // الأدوار الأخرى: اختيار عامل إلزامي — «self» يرفضه الخادم لهذه الأدوار
-        // (درس بلاغ المالك 2026-10-24: worker_not_in_company برسالة عامة)
-        return workers.length > 0 ? !!workerId : true;
+        // العامل: نفسه تلقائيًا (لا قائمة اختيار له — الهدف نفسه في الخادم)
+        // كل الأدوار الأخرى: اختيار عضو إلزامي — لا «self» بعد الآن (علاج بلاغ
+        // المالك 2026-10-25: القائمة الفارغة كانت تفعّل الزر ثم تفشل 404 برسالة
+        // «العامل المختار غير موجود في الشركة» بلا أي خيار ظاهر للاختيار)
+        return role === "employee" ? true : !!workerId;
       case "compliance_report":
         return !!declId && DECL_ELIGIBLE.includes(declarations.find((d) => d.id === declId)?.status ?? "");
       default:
@@ -216,7 +230,8 @@ export function ReportsManager() {
           break;
         case "attendance_statement":
         case "hours_statement":
-          body.targetId = workerId || "self";
+          // العامل: نفسه (يستبدله الخادم بجلسته) — غيره: العضو المختار حصرًا (لا احتياط «self»)
+          body.targetId = role === "employee" ? "self" : workerId;
           body.year = year;
           body.month = month;
           break;
@@ -245,6 +260,8 @@ export function ReportsManager() {
         toast({ variant: "destructive", description: t("reports.draftBlocked") });
       } else if (code.includes("no_wage_access")) {
         toast({ variant: "destructive", description: t("reports.noWageAccess") });
+      } else if (code.includes("worker_missing")) {
+        toast({ variant: "destructive", description: t("reports.workerPickRequired") });
       } else if (code.includes("worker_not_in_company")) {
         toast({ variant: "destructive", description: t("reports.workerMissing") });
       } else if (code.includes("declaration_not_approved")) {
@@ -308,7 +325,7 @@ export function ReportsManager() {
     }
   }
 
-  const needsWorkerSelect = kind === "attendance_statement" || kind === "hours_statement";
+  const needsWorkerSelect = (kind === "attendance_statement" || kind === "hours_statement") && role !== "employee";
 
   return (
     <div className="space-y-6">
@@ -420,25 +437,29 @@ export function ReportsManager() {
 
               {needsWorkerSelect && (
                 <div className="space-y-3">
-                  {workers.length > 0 && (
-                    <div className="space-y-1.5">
-                      <Label>{t("reports.selectWorker")}</Label>
+                  <div className="space-y-1.5">
+                    <Label>{t("reports.selectWorker")}</Label>
+                    {members.length > 0 ? (
                       <Select value={workerId} onValueChange={setWorkerId}>
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder={t("reports.workerRequired")} />
                         </SelectTrigger>
                         <SelectContent>
-                          {workers.map((w) => (
-                            <SelectItem key={w.userId} value={w.userId}>
-                              {w.fullName}
+                          {members.map((m) => (
+                            <SelectItem key={m.userId} value={m.userId}>
+                              {m.fullName} — {t(roleLabelKey(m.role))}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      {/* إلزامية الاختيار مذكورة صراحةً — الزر معطّل حتى الاختيار */}
-                      <p className="text-xs text-muted-foreground">{t("reports.workerRequiredHint")}</p>
-                    </div>
-                  )}
+                    ) : (
+                      /* لا أعضاء نشطين أصلاً: سبب واضح بدل اختفاء المنتقي (علاج بلاغ
+                        المالك 2026-10-25: كان المنتقي يختفي والأزرار تعمل ثم تفشل) */
+                      <p className="text-xs text-muted-foreground">{t("reports.noMembers")}</p>
+                    )}
+                    {/* إلزامية الاختيار مذكورة صراحةً — الزر معطّل حتى الاختيار */}
+                    <p className="text-xs text-muted-foreground">{t("reports.workerRequiredHint")}</p>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label>{t("reports.year")}</Label>

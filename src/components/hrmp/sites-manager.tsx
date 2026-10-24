@@ -413,7 +413,7 @@ export function SitesManager({ canDelete = false }: { canDelete?: boolean }) {
 
       {/* حوار الإنشاء/التعديل مع الخريطة */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingId ? t("sites.editTitle") : t("sites.createTitle")}</DialogTitle>
             <DialogDescription>{t("sites.pickHint")}</DialogDescription>

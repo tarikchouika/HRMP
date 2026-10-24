@@ -1244,6 +1244,8 @@
     "csvHint": "Tabla CSV: importes brutos sin formato y fechas ISO — se abre en Excel y sigue siendo editable",
     "workerRequired": "Selecciona primero el trabajador",
     "workerRequiredHint": "Elegir trabajador es obligatorio para el certificado de asistencia y horas — el botón se activa tras la selección",
+    "noMembers": "No hay miembros activos en esta empresa — añade primero usuarios desde la página de Usuarios",
+    "workerPickRequired": "Elige primero un trabajador o usuario de la lista — el botón se activa tras la selección",
     "periodRequired": "Selecciona el período",
     "noDeclarations": "Aún no hay declaraciones — crea una y apruébala primero",
     "declarationRequired": "Selecciona una declaración",

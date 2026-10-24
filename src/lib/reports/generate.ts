@@ -202,6 +202,12 @@ export async function generateReport(
       if (role === "employee") {
         workerUserId = session.sub;
       } else {
+        // علاج بلاغ المالك 2026-10-25: «self» مسموح للعامل وحده — الأدوار الأخرى
+        // ترسل هدفًا حقيقيًا أو تُرفض صراحة بـ422 worker_missing (كانت تمرّ ثم تفشل
+        // 404 worker_not_in_company برسالة عامة مضلِّلة).
+        if (!workerUserId || workerUserId === "self") {
+          throw new ReportDataError(422, "worker_missing");
+        }
         const member = await db.userMembership.findFirst({
           where: { userId: targetId, companyId },
           select: { id: true },
