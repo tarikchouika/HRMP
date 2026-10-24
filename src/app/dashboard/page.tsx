@@ -29,6 +29,16 @@ function formatDateTime(iso: Date, locale: string): string {
   }).format(iso);
 }
 
+/** (بلاغ المالك 2026-10-25 — خلل سجل أحداث الصفحة الرئيسية): كان العمود يعرض
+ *  المفتاح الخام (auth.login…) — نفس عقد سجل التدقيق الكامل: الترجمة من
+ *  audit.actions بالمفتاح المفكوك على الشرطة السفلية، وسقوط آمن للمفتاح
+ *  الخام للقيم غير المفهرسة بعد. */
+function auditActionLabel(dict: ReturnType<typeof getDictionary>, action: string): string {
+  const key = `audit.actions.${action.replace(/\./g, "_")}`;
+  const translated = tServer(dict, key);
+  return translated === key ? action : translated;
+}
+
 export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -148,9 +158,13 @@ export default async function DashboardPage() {
                         {formatDateTime(log.createdAt, locale)}
                       </TableCell>
                       <TableCell>
-                        <code className="rounded bg-muted px-1.5 py-0.5 text-xs" dir="ltr">
-                          {log.action}
-                        </code>
+                        <span
+                          className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium"
+                          dir="auto"
+                          title={log.action}
+                        >
+                          {auditActionLabel(dict, log.action)}
+                        </span>
                       </TableCell>
                       <TableCell className="text-xs">{log.user?.fullName ?? "system"}</TableCell>
                       {isSuper && (

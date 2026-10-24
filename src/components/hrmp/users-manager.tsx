@@ -69,16 +69,24 @@ const roleLabelKey = (role: string) =>
     employee: "dashboard.roleEmployee",
   })[role] ?? "dashboard.roleEmployee";
 
+/** (بلاغ المالك 2026-10-25 — خلل خانة تفويض الصلاحيات): كان حوار/جدول التفويض
+ *  يعرض المفاتيح الخام (users.create…) بلا ترجمة. الآن: ترجمة من قسم permissions
+ *  في القاموس (المفتاح بالنقطة يُفكّ على الشرطة السفلية) مع سقوط آمن للمفتاح الخام
+ *  لقيم جديدة غير مفهرسة بعد. */
+const permissionLabelKey = (permission: string) => `permissions.${permission.replace(/\./g, "_")}`;
+
 export function UsersManager({
   canCreate,
   isSuperAdmin,
   myUserId,
   canDelete,
+  canResetPassword,
 }: {
   canCreate: boolean;
   isSuperAdmin: boolean;
   myUserId: string;
   canDelete: boolean;
+  canResetPassword: boolean;
 }) {
   const { t, locale } = useI18n();
   const { toast } = useToast();
@@ -106,6 +114,12 @@ export function UsersManager({
   const [deleteRow, setDeleteRow] = useState<UserRow | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
   const [deleting, setDeleting] = useState(false);
+
+  // حوار تغيير كلمة السر (بلاغ المالك 2026-10-25): users.password — السوبر أدمن
+  // بطبعه أو مفوَّض؛ النتيجة تُعرض مرة واحدة ككلمة المرور الابتدائية
+  const [resetRow, setResetRow] = useState<UserRow | null>(null);
+  const [resetSaving, setResetSaving] = useState(false);
+  const [newPassword, setNewPassword] = useState<{ email: string; password: string } | null>(null);
 
   // تفويض
   const [delegations, setDelegations] = useState<DelegationRow[]>([]);
@@ -254,6 +268,32 @@ export function UsersManager({
     }
   }
 
+  /** تغيير كلمة سر مستخدم (بلاغ المالك 2026-10-25): users.password — سوبر أدمن
+   *  بطبعه أو مفوَّض؛ الخادم يحمي كلمة سوبر أدمن من غير المالك ويبطل الجلسات */
+  async function confirmResetPassword(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!resetRow || resetSaving) return;
+    const custom = (document.getElementById("u-reset-password") as HTMLInputElement | null)?.value?.trim() ?? "";
+    setResetSaving(true);
+    try {
+      const data = await apiRequest<{ newPassword: string; user: { email: string } }>(
+        `/api/users/${resetRow.userId}/password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(custom ? { password: custom } : {}),
+        },
+      );
+      setResetRow(null);
+      setNewPassword({ email: data.user.email, password: data.newPassword });
+      toast({ description: t("usersPage.resetPasswordDone") });
+    } catch (err) {
+      toast({ variant: "destructive", description: apiErrorMessage(t, err) });
+    } finally {
+      setResetSaving(false);
+    }
+  }
+
   /** الحذف النهائي (data.delete): حرّاس السلامة في الخادم — رسالة مرشدة عند الرفض */
   async function confirmDelete() {
     if (!deleteRow || deleting) return;
@@ -280,20 +320,22 @@ export function UsersManager({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* كلمة المرور الابتدائية — تُعرض مرة واحدة */}
-      {initialPassword && (
+      {/* كلمة المرور الابتدائية / الجديدة — تُعرض مرة واحدة (تغيير كلمة السر بلاغ 2026-10-25) */}
+      {(initialPassword || newPassword) && (() => {
+        const shown = newPassword ?? initialPassword!;
+        return (
         <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
-          <span className="font-bold">{t("usersPage.initialPasswordTitle")} — {initialPassword.email}</span>
+          <span className="font-bold">{t(newPassword ? "usersPage.newPasswordTitle" : "usersPage.initialPasswordTitle")} — {shown.email}</span>
           <div className="flex items-center gap-2">
             <code dir="ltr" className="rounded bg-amber-100 px-2 py-1 font-mono text-base font-bold dark:bg-amber-900 dark:text-amber-100">
-              {initialPassword.password}
+              {shown.password}
             </code>
             <Button
               variant="outline"
               size="sm"
               className="gap-2"
               onClick={() => {
-                void navigator.clipboard?.writeText(initialPassword.password).then(() =>
+                void navigator.clipboard?.writeText(shown.password).then(() =>
                   toast({ description: t("common.copy") }),
                 );
               }}
@@ -301,24 +343,35 @@ export function UsersManager({
               <Copy className="size-3.5" aria-hidden />
               {t("common.copy")}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setInitialPassword(null)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setInitialPassword(null);
+                setNewPassword(null);
+              }}
+            >
               {t("common.ok")}
             </Button>
           </div>
-          <span className="text-xs">{t("usersPage.initialPasswordHint")}</span>
+          <span className="text-xs">{t(newPassword ? "usersPage.resetPasswordHint" : "usersPage.initialPasswordHint")}</span>
         </div>
-      )}
+        );
+      })()}
 
       {/* التفويض — السوبر أدمن وحده */}
       {isSuperAdmin && (
         <Card className="border-border/70">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          {/* (بلاغ المالك 2026-10-25 — فيض الشاشة عند تغيير اللغة): كان الرأس صفًا واحدًا
+              بزر nowrap — والترجمات الطويلة (Accorder une délégation…) تتجاوز 360px.
+              الآن: تَفافُع عمودي على الجوال والزر يلتف نصّه بدل أن يفيض أفقياً. */}
+          <CardHeader className="flex flex-col gap-2 pb-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2 text-base font-bold">
               <ShieldCheck className="size-4 text-primary" aria-hidden />
               {t("usersPage.delegationsTitle")}
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={() => setDelegOpen(true)} className="gap-2">
-              <KeyRound className="size-3.5" aria-hidden />
+            <Button variant="outline" size="sm" onClick={() => setDelegOpen(true)} className="whitespace-normal gap-2">
+              <KeyRound className="size-3.5 shrink-0" aria-hidden />
               {t("usersPage.grantDelegation")}
             </Button>
           </CardHeader>
@@ -340,8 +393,15 @@ export function UsersManager({
                     {delegations.map((d) => (
                       <TableRow key={d.id}>
                         <TableCell className="font-medium">{d.granteeName}</TableCell>
-                        <TableCell>
-                          <code dir="ltr" className="rounded bg-muted px-1.5 py-0.5 text-xs">{d.permission}</code>
+                        <TableCell className="min-w-40">
+                          {/* (بلاغ المالك 2026-10-25): ترجمة الصلاحية بدل المفتاح الخام — المفتاح التقني يبقى في تلميح العنوان للتشخيص */}
+                          <span
+                            className="inline-block max-w-48 truncate rounded bg-muted px-1.5 py-0.5 text-xs font-medium"
+                            title={d.permission}
+                            dir="auto"
+                          >
+                            {t(permissionLabelKey(d.permission)).startsWith("permissions.") ? d.permission : t(permissionLabelKey(d.permission))}
+                          </span>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground tabular-nums">
                           {d.expiresAt
@@ -454,6 +514,18 @@ export function UsersManager({
                           <span className="text-[11px] text-muted-foreground">{t("usersPage.you")}</span>
                         ) : (
                           <div className="flex items-center gap-1.5">
+                            {canResetPassword && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 gap-1.5 px-2 text-xs"
+                                onClick={() => setResetRow(r)}
+                                aria-label={t("usersPage.resetPasswordTitle")}
+                                title={t("usersPage.resetPasswordTitle")}
+                              >
+                                <KeyRound className="size-3.5 text-primary" aria-hidden />
+                              </Button>
+                            )}
                             <Button
                               variant={r.isActive ? "outline" : "secondary"}
                               size="sm"
@@ -530,6 +602,17 @@ export function UsersManager({
                   </div>
                   {r.userId !== myUserId && (
                     <div className="mt-2.5 flex flex-wrap gap-2">
+                      {canResetPassword && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 gap-1.5 px-3 text-xs"
+                          onClick={() => setResetRow(r)}
+                        >
+                          <KeyRound className="size-3.5 text-primary" aria-hidden />
+                          {t("usersPage.resetPasswordTitle")}
+                        </Button>
+                      )}
                       <Button
                         variant={r.isActive ? "outline" : "secondary"}
                         size="sm"
@@ -653,9 +736,20 @@ export function UsersManager({
               <Select value={delegForm.permission} onValueChange={(v) => setDelegForm((f) => ({ ...f, permission: v }))}>
                 <SelectTrigger id="d-perm"><SelectValue placeholder={t("usersPage.permission")} /></SelectTrigger>
                 <SelectContent className="max-h-64">
-                  {delegable.map((p) => (
-                    <SelectItem key={p} value={p} className="text-xs">{p}</SelectItem>
-                  ))}
+                  {delegable.map((p) => {
+                    // (بلاغ المالك 2026-10-25): اسم مترجم + المفتاح التقني الصغير تحته —
+                    // واضح للمالك ومحدد للتشخيص، بلا مفاتيح خام وحدها بعد الآن
+                    const label = t(permissionLabelKey(p));
+                    const translated = label.startsWith("permissions.") ? p : label;
+                    return (
+                      <SelectItem key={p} value={p} className="text-xs">
+                        <span className="flex flex-col leading-tight">
+                          <span>{translated}</span>
+                          <span className="text-[10px] text-muted-foreground" dir="ltr">{p}</span>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -675,6 +769,40 @@ export function UsersManager({
                 {delegSaving && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
                 <Check className="size-4" aria-hidden />
                 {t("usersPage.grantDelegation")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {/* حوار تغيير كلمة السر (بلاغ المالك 2026-10-25): users.password — السوبر أدمن
+          بطبعه أو مفوَّض منه؛ الخادم يرفض تغيير كلمة سر سوبر أدمن من غير المالك ويبطل
+          جلسات المستخدم فور التغيير. النتيجة تُعرض مرة واحدة فقط. */}
+      <Dialog open={resetRow !== null} onOpenChange={(open) => { if (!open) setResetRow(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="size-4 text-primary" aria-hidden />
+              {t("usersPage.resetPasswordTitle")}
+            </DialogTitle>
+            <DialogDescription>{t("usersPage.resetPasswordDesc")}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={confirmResetPassword} className="flex flex-col gap-3">
+            <div className="rounded-lg border border-border/70 bg-muted/40 p-3 text-sm">
+              <p className="font-semibold">{resetRow?.fullName}</p>
+              <p className="text-xs text-muted-foreground" dir="ltr">{resetRow?.email}</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="u-reset-password">{t("usersPage.resetPasswordLabel")}</Label>
+              <Input id="u-reset-password" type="text" dir="ltr" minLength={8} maxLength={72} placeholder={t("usersPage.resetPasswordPlaceholder")} />
+              <span className="text-[11px] text-muted-foreground">{t("usersPage.resetPasswordHint")}</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">{t("usersPage.passwordRules")}</p>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setResetRow(null)}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={resetSaving} className="gap-2">
+                {resetSaving && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
+                <KeyRound className="size-4" aria-hidden />
+                {t("usersPage.resetPasswordOk")}
               </Button>
             </DialogFooter>
           </form>

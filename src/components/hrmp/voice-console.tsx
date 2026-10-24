@@ -78,6 +78,8 @@ type DirectMsg = {
   lng: number | null;
   accuracyM: number | null;
   viewedAt: string | null;
+  purgedAt: string | null; // (بلاغ المالك 2026-10-25) استُهلك الفيديو ومُسحت حمولته — غير قابل للتشغيل
+  purgedBy: string | null;
   createdAt: string;
 };
 
@@ -91,6 +93,24 @@ const NONE = "none";
 
 function hoursLabel(sec: number): string {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
+
+/** dataURL ⇒ Blob بلا fetch (سقوط atob لبيئات بلا canvas.toBlob) —
+ *  fetch(data:) محجوب بسياسة CSP connect-src فلا يُستعمل إطلاقًا (جذر خلل
+ *  إرسال الصورة 2026-10-25) */
+function dataUrlToBlob(dataUrl: string): Blob | null {
+  try {
+    const comma = dataUrl.indexOf(",");
+    if (comma < 0) return null;
+    const meta = dataUrl.slice(5, comma); // "image/jpeg;base64"
+    const mime = meta.split(";")[0] || "image/jpeg";
+    const raw = atob(dataUrl.slice(comma + 1));
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  } catch {
+    return null;
+  }
 }
 
 export function VoiceConsole({ myUserId }: { myUserId: string }) {
@@ -145,7 +165,7 @@ export function VoiceConsole({ myUserId }: { myUserId: string }) {
   const camAutoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [camRecording, setCamRecording] = useState(false);
   const [camRecordSec, setCamRecordSec] = useState(0);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null); // dataURL
+  const [photoPreview, setPhotoPreview] = useState<{ url: string; blob: Blob } | null>(null); // (بلاغ المالك 2026-10-25) Blob مباشرة — كان dataURL يُجلب بـfetch المحجوب بـCSP connect-src فيفشل إرسال الصورة
   const [videoPreview, setVideoPreview] = useState<{ url: string; blob: Blob; durationSec: number } | null>(null);
 
   // عارض الصورة/الفيديو داخل المحادثة
@@ -363,7 +383,7 @@ export function VoiceConsole({ myUserId }: { myUserId: string }) {
   async function openCamera(kind: "photo" | "video", facing: "environment" | "user" = camFacing) {
     setDmError(null);
     setCamError(null);
-    setPhotoPreview(null);
+    clearPhotoPreview();
     setVideoPreview((v) => {
       if (v) URL.revokeObjectURL(v.url);
       return null;
@@ -394,6 +414,13 @@ export function VoiceConsole({ myUserId }: { myUserId: string }) {
     }
   }
 
+  function clearPhotoPreview() {
+    setPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  }
+
   function closeCamera() {
     stopCamTimers();
     camRecorderRef.current?.stream.getTracks().forEach((tk) => tk.stop());
@@ -403,7 +430,7 @@ export function VoiceConsole({ myUserId }: { myUserId: string }) {
     camChunksRef.current = [];
     setCamRecording(false);
     setCamRecordSec(0);
-    setPhotoPreview(null);
+    clearPhotoPreview();
     setVideoPreview((v) => {
       if (v) URL.revokeObjectURL(v.url);
       return null;
@@ -429,7 +456,26 @@ export function VoiceConsole({ myUserId }: { myUserId: string }) {
     canvas.width = w;
     canvas.height = h;
     canvas.getContext("2d")?.drawImage(video, 0, 0, w, h);
-    setPhotoPreview(canvas.toDataURL("image/jpeg", 0.85));
+    // (بلاغ المالك 2026-10-25 — جذر خلل إرسال الصورة): كان toDataURL ثم
+    // fetch(dataURL) لاستعادة Blob — وfetch على data: محجوب بسياسة CSP
+    // connect-src 'self' https: wss: (خطأ المتصفح: Fetch API cannot load
+    // data:image/jpeg) ⇒ الإرسال يفشل دائمًا. الآن: toBlob مباشرة (Blob حقيقي
+    // بلا أي fetch)، مع سقوط يدوي إلى فك base64 إن غاب toBlob في بيئة قديمة.
+    const toBlob = (): Promise<Blob | null> =>
+      new Promise((resolve) => {
+        if (typeof canvas.toBlob === "function") {
+          canvas.toBlob((b) => resolve(b), "image/jpeg", 0.85);
+        } else {
+          resolve(dataUrlToBlob(canvas.toDataURL("image/jpeg", 0.85)));
+        }
+      });
+    void toBlob().then((blob) => {
+      if (!blob) return;
+      setPhotoPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return { url: URL.createObjectURL(blob), blob };
+      });
+    });
   }
 
   async function startVideoRecord() {
@@ -503,12 +549,16 @@ export function VoiceConsole({ myUserId }: { myUserId: string }) {
 
   async function sendPhotoPreview() {
     if (!photoPreview || !selected) return;
-    const blob = await (await fetch(photoPreview)).blob();
+    // Blob جاهز من الالتقاط (toBlob) — لا fetch لـdata: إطلاقًا (جذر الخلل السابق)
     const form = new FormData();
     form.set("to", selected.userId);
     form.set("kind", "photo");
-    form.set("media", blob, "photo.jpg");
-    if (await sendDirect(form)) closeCamera();
+    form.set("media", photoPreview.blob, "photo.jpg");
+    const url = photoPreview.url;
+    if (await sendDirect(form)) {
+      URL.revokeObjectURL(url);
+      closeCamera();
+    }
   }
 
   async function sendVideoPreview() {
@@ -553,15 +603,32 @@ export function VoiceConsole({ myUserId }: { myUserId: string }) {
   }
 
   // ── التشغيل والعرض ──
+  /** تعليم المشاهدة (المستقبِل فقط — مشاهدة الإشراف لا تعلّمها) — والفيديو
+   *  يُستهلك بها: الحمولة تُمسح في الخادم فورًا (بلاغ المالك 2026-10-25) */
   function markViewed(msg: DirectMsg) {
     if (msg.recipientId !== myUserId || msg.viewedAt) return;
+    const consumesVideo = msg.kind === "video" && !msg.purgedAt;
     void fetch(`/api/direct-messages/${msg.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ viewed: true }),
     })
-      .then(() => {
-        setDmMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, viewedAt: new Date().toISOString() } : m)));
+      .then((r) => (r.ok ? r.json().catch(() => null) : null))
+      .then((data: { purged?: boolean } | null) => {
+        const purged = consumesVideo || data?.purged === true;
+        setDmMessages((prev) =>
+          prev.map((m) =>
+            m.id === msg.id
+              ? {
+                  ...m,
+                  viewedAt: m.viewedAt ?? new Date().toISOString(),
+                  // الفيديو مُستهلك: الحمولة مُسحت (سيظهر كذلك بعد التحديث)
+                  purgedAt: purged ? (m.purgedAt ?? new Date().toISOString()) : m.purgedAt,
+                  purgedBy: purged ? (m.purgedBy ?? myUserId) : m.purgedBy,
+                }
+              : m,
+          ),
+        );
       })
       .catch(() => null);
   }
@@ -936,6 +1003,26 @@ export function VoiceConsole({ myUserId }: { myUserId: string }) {
                                 </span>
                               </button>
                             ) : item.msg.kind === "video" ? (
+                              item.msg.purgedAt ? (
+                                /* فيديو مُستهلك ومُسح (متلقٍّ أو معني بالأمر أو انتهاء العمر) —
+                                   نفس شارة الصوتيات المؤقتة (بلاغ المالك 2026-10-25) */
+                                <div
+                                  className={`flex max-w-[85%] items-center gap-2.5 rounded-2xl border border-dashed px-3.5 py-2.5 ${
+                                    mine ? "border-primary/40 bg-primary/5" : "border-border bg-muted/40"
+                                  }`}
+                                  aria-label={t("voice.purgedBadge")}
+                                >
+                                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
+                                    <Trash2 className="size-4 text-muted-foreground" aria-hidden />
+                                  </span>
+                                  <div className="flex flex-col leading-tight">
+                                    <span className="text-xs font-semibold text-muted-foreground">{t("voice.purgedBadge")}</span>
+                                    <span className="text-[10px] text-muted-foreground tabular-nums" dir="auto">
+                                      {fmtTime(item.msg.createdAt)} · {hoursLabel(item.msg.durationSec)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
                               <div className={`max-w-[85%] overflow-hidden rounded-2xl ${mine ? "bg-primary" : "bg-muted"}`}
                                 onPointerDown={() => markViewed(item.msg)}
                               >
@@ -956,6 +1043,7 @@ export function VoiceConsole({ myUserId }: { myUserId: string }) {
                                   </span>
                                 </span>
                               </div>
+                              )
                             ) : (
                               <a
                                 href={`https://www.openstreetmap.org/?mlat=${item.msg.lat}&mlon=${item.msg.lng}#map=17/${item.msg.lat}/${item.msg.lng}`}
@@ -1096,9 +1184,9 @@ export function VoiceConsole({ myUserId }: { myUserId: string }) {
             </div>
           ) : photoPreview ? (
             <div className="space-y-3">
-              <img src={photoPreview} alt={t("voice.kindPhoto")} className="max-h-[46vh] w-full rounded-xl object-contain" />
+              <img src={photoPreview.url} alt={t("voice.kindPhoto")} className="max-h-[46vh] w-full rounded-xl object-contain" />
               <div className="flex items-center justify-between gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPhotoPreview(null)} className="gap-2">
+                <Button variant="outline" size="sm" onClick={() => clearPhotoPreview()} className="gap-2">
                   <RefreshCcw className="size-3.5" aria-hidden />
                   {t("voice.retake")}
                 </Button>

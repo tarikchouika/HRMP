@@ -658,7 +658,14 @@
     "presenceLeftLine2": "la zona del equipo",
     "presenceReturnedLine1": "El miembro volvió a",
     "presenceReturnedLine2": "la zona del equipo",
-    "presenceMeters": "m"
+    "presenceMeters": "m",
+    "enableTitle": "Activar notificaciones del dispositivo",
+    "pushGranted": "Notificaciones activadas en este dispositivo",
+    "pushDenied": "Notificaciones rechazadas — actívelas en los ajustes del navegador/sistema y reintente",
+    "pushUnsupported": "Este navegador no admite notificaciones push — las notificaciones integradas funcionan con normalidad",
+    "pushNativeHint": "La aplicación muestra notificaciones mediante el sistema Android",
+    "pushGrantedHint": "Recibirá notificaciones incluso fuera de la plataforma",
+    "pushFailed": "No se pudo registrar el dispositivo — reintente"
   },
   "payroll": {
     "title": "Nómina",
@@ -1474,7 +1481,17 @@
     "you": "Tú",
     "user": "Usuario",
     "deleted": "Usuario eliminado definitivamente",
-    "deleteFailedHint": "Falló la eliminación definitiva"
+    "deleteFailedHint": "Falló la eliminación definitiva",
+    "resetPasswordTitle": "Cambiar contraseña",
+    "resetPasswordDesc": "Nueva contraseña del usuario — se genera automáticamente si se deja vacía, se muestra una sola vez",
+    "resetPasswordLabel": "Nueva contraseña",
+    "resetPasswordPlaceholder": "Dejar vacío para generar automáticamente",
+    "resetPasswordHint": "8 caracteres mínimo — se muestra una sola vez; todas las sesiones del usuario quedan invalidadas",
+    "resetPasswordOk": "Cambiar contraseña",
+    "resetPasswordDone": "Contraseña actualizada",
+    "newPasswordTitle": "Nueva contraseña",
+    "cannotResetSuperAdmin": "Solo el propietario (super admin) puede cambiar la contraseña de un super admin",
+    "passwordRules": "El super admin posee este permiso por naturaleza — y puede delegarlo al admin"
   },
   "errors": {
     "title": "Ha ocurrido un error inesperado",
@@ -1623,7 +1640,23 @@
       "worker_group_member_add": "Añadir miembro al grupo",
       "worker_group_member_remove": "Quitar miembro del grupo",
       "worker_group_restore": "Restaurar grupo de obreros",
-      "worker_group_update": "Modificar grupo de obreros"
+      "worker_group_update": "Modificar grupo de obreros",
+      "call_started": "Llamada directa iniciada",
+      "direct_message_send": "Mensaje visual/ubicación enviado",
+      "user_password_reset": "Contraseña de usuario cambiada (vía administración)",
+      "recruitment_application_created": "Solicitud enviada",
+      "recruitment_application_status": "Estado de solicitud actualizado",
+      "recruitment_application_withdrawn": "Solicitud retirada",
+      "recruitment_document_uploaded": "Documento de identidad subido",
+      "recruitment_review_notified": "Supervisión notificada de una revisión",
+      "recruitment_seeker_register": "Registro de candidato",
+      "recruitment_seeker_verified": "Canal del candidato verificado",
+      "recruitment_seeker_approved": "Identidad del candidato aprobada",
+      "recruitment_seeker_rejected": "Identidad del candidato rechazada",
+      "recruitment_vacancy_created": "Vacante creada",
+      "recruitment_vacancy_updated": "Vacante actualizada",
+      "recruitment_vacancy_archived": "Vacante archivada",
+      "recruitment_vacancy_published": "Vacante publicada"
     },
     "entities": {
       "accountant_grant": "Privilegio de contable",
@@ -1652,7 +1685,13 @@
       "user": "Usuario",
       "verification_policy": "Política de verificación",
       "voice_message": "Mensaje de voz",
-      "worker_group": "Grupo de obreros"
+      "worker_group": "Grupo de obreros",
+      "direct_message": "Mensaje visual/ubicación",
+      "call_session": "Sesión de llamada",
+      "job_seeker": "Candidato",
+      "project_vacancy": "Vacante",
+      "vacancy_application": "Solicitud",
+      "device": "Dispositivo de notificaciones"
     },
     "actionLabel": "Action",
     "entityLabel": "Entidad",
@@ -2129,5 +2168,29 @@
     "hasApplications": "Tiene solicitudes",
     "registeredOn": "Registrado el {date}",
     "reviewedOn": "Última revisión {date}"
+  },
+  "permissions": {
+    "platform_manage": "Gestión de la plataforma (propietario)",
+    "company_manage": "Gestión de la empresa (sucursales/sitios/proyectos)",
+    "users_manage": "Gestión de usuarios (edición/desactivación)",
+    "users_create": "Creación de cuentas de usuario",
+    "users_password": "Cambio de contraseñas de usuarios",
+    "data_delete": "Eliminación definitiva de datos",
+    "teams_manage": "Gestión de equipos (miembros/líderes)",
+    "voice_use": "Mensajería de voz dentro del equipo",
+    "voice_admin": "Mensajería en todos los equipos (supervisión)",
+    "location_view": "Consulta de posiciones en vivo",
+    "payroll_view": "Consulta de nóminas",
+    "payroll_approve": "Aprobación de nóminas",
+    "payroll_verify": "Verificación de reglas de nómina",
+    "declarations_review": "Revisión de declaraciones oficiales",
+    "declarations_export": "Exportación de declaraciones oficiales",
+    "audit_view": "Consulta del registro de auditoría",
+    "attendance_manage": "Gestión de asistencia",
+    "scheduling_manage": "Gestión de horarios y turnos",
+    "recruitment_manage": "Gestión de vacantes",
+    "seekers_verify": "Autenticación de candidatos",
+    "notifications_push": "Notificaciones de dispositivos (móviles/escritorio/Android)",
+    "self_view": "Datos propios del usuario"
   }
 }

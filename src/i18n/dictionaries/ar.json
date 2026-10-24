@@ -658,7 +658,14 @@
     "presenceLeftLine2": "منطقة الفريق",
     "presenceReturnedLine1": "عاد العضو",
     "presenceReturnedLine2": "إلى منطقة الفريق",
-    "presenceMeters": "م"
+    "presenceMeters": "م",
+    "enableTitle": "تفعيل إشعارات الجهاز",
+    "pushGranted": "الإشعارات مفعّلة على هذا الجهاز",
+    "pushDenied": "رفضت الإشعارات — فعّلها من إعدادات المتصفح/النظام ثم أعد المحاولة",
+    "pushUnsupported": "هذا المتصفح لا يدعم إشعارات الدفع — إشعارات داخل المنصة تعمل كالمعتاد",
+    "pushNativeHint": "التطبيق يعرض الإشعارات عبر نظام أندرويد",
+    "pushGrantedHint": "ستصلك الإشعارات حتى خارج المنصة",
+    "pushFailed": "تعذر تسجيل الجهاز — حاول مجددًا"
   },
   "payroll": {
     "title": "الأجور",
@@ -1474,7 +1481,17 @@
     "you": "أنت",
     "user": "المستخدم",
     "deleted": "حُذف المستخدم نهائيًا",
-    "deleteFailedHint": "تعذّر الحذف النهائي"
+    "deleteFailedHint": "تعذّر الحذف النهائي",
+    "resetPasswordTitle": "تغيير كلمة السر",
+    "resetPasswordDesc": "كلمة سر جديدة للمستخدم — تُولَّد تلقائيًا إن تركتها فارغة وتُعرض مرة واحدة",
+    "resetPasswordLabel": "كلمة السر الجديدة",
+    "resetPasswordPlaceholder": "اتركها فارغة للتوليد التلقائي",
+    "resetPasswordHint": "8 أحرف على الأقل — تُعرض مرة واحدة بعد التغيير وتُبطل كل جلسات المستخدم فورًا",
+    "resetPasswordOk": "تغيير كلمة السر",
+    "resetPasswordDone": "حُدِّثت كلمة السر",
+    "newPasswordTitle": "كلمة السر الجديدة",
+    "cannotResetSuperAdmin": "لا يمكن تغيير كلمة سر مالك المنصة إلا من مالك (السوبر أدمن)",
+    "passwordRules": "السوبر أدمن وحده يملك هذه الصلاحية بطبعه — ويمكنه تفويضها للأدمن"
   },
   "errors": {
     "title": "حدث خطأ غير متوقع",
@@ -1623,7 +1640,23 @@
       "worker_group_member_add": "إضافة عضو إلى مجموعة",
       "worker_group_member_remove": "إزالة عضو من مجموعة",
       "worker_group_restore": "استعادة مجموعة عمال",
-      "worker_group_update": "تعديل مجموعة عمال"
+      "worker_group_update": "تعديل مجموعة عمال",
+      "call_started": "بدء اتصال مباشر",
+      "direct_message_send": "إرسال رسالة مرئية/موقعية",
+      "user_password_reset": "تغيير كلمة سر مستخدم (إداريًا)",
+      "recruitment_application_created": "تقديم على وظيفة",
+      "recruitment_application_status": "تحديث حالة طلب تقديم",
+      "recruitment_application_withdrawn": "سحب طلب تقديم",
+      "recruitment_document_uploaded": "رفع وثيقة هوية باحث",
+      "recruitment_review_notified": "إشعار إشراف بمراجعة باحث",
+      "recruitment_seeker_register": "تسجيل باحث عن عمل",
+      "recruitment_seeker_verified": "توثيق قناة باحث",
+      "recruitment_seeker_approved": "اعتماد هوية باحث",
+      "recruitment_seeker_rejected": "رفض هوية باحث",
+      "recruitment_vacancy_created": "إنشاء وظيفة شاغرة",
+      "recruitment_vacancy_updated": "تحديث وظيفة شاغرة",
+      "recruitment_vacancy_archived": "أرشفة وظيفة شاغرة",
+      "recruitment_vacancy_published": "نشر وظيفة شاغرة"
     },
     "entities": {
       "accountant_grant": "تفويض محاسب",
@@ -1652,7 +1685,13 @@
       "user": "مستخدم",
       "verification_policy": "سياسة تحقق",
       "voice_message": "رسالة صوتية",
-      "worker_group": "مجموعة عمال"
+      "worker_group": "مجموعة عمال",
+      "direct_message": "رسالة مرئية/موقعية",
+      "call_session": "جلسة اتصال",
+      "job_seeker": "باحث عن عمل",
+      "project_vacancy": "وظيفة شاغرة",
+      "vacancy_application": "طلب تقديم",
+      "device": "جهاز إشعارات"
     },
     "actionLabel": "الإجراء",
     "entityLabel": "الكيان",
@@ -2129,5 +2168,29 @@
     "hasApplications": "لديه طلبات تقديم",
     "registeredOn": "سجّل في {date}",
     "reviewedOn": "آخر مراجعة {date}"
+  },
+  "permissions": {
+    "platform_manage": "إدارة المنصة (المالك)",
+    "company_manage": "إدارة الشركة (فروع/مواقع/مشاريع)",
+    "users_manage": "إدارة المستخدمين (تعديل/تعطيل)",
+    "users_create": "إنشاء حسابات المستخدمين",
+    "users_password": "تغيير كلمات سر المستخدمين",
+    "data_delete": "الحذف النهائي للبيانات",
+    "teams_manage": "إدارة الفرق والأعضاء والقادة",
+    "voice_use": "المراسلة الصوتية داخل الفريق",
+    "voice_admin": "المراسلة عبر كل الفرق (إشراف)",
+    "location_view": "الاطلاع على المواقع الآنية",
+    "payroll_view": "عرض كشوف الأجور",
+    "payroll_approve": "اعتماد كشوف الأجور",
+    "payroll_verify": "توثيق قواعد الأجور",
+    "declarations_review": "مراجعة التصاريح الرسمية",
+    "declarations_export": "تصدير التصاريح الرسمية",
+    "audit_view": "عرض سجل التدقيق",
+    "attendance_manage": "إدارة الحضور والمراجعة",
+    "scheduling_manage": "إدارة البرامج والورديات",
+    "recruitment_manage": "إدارة الوظائف الشاغرة",
+    "seekers_verify": "مصادقة هوية الباحثين عن عمل",
+    "notifications_push": "إشعارات الأجهزة (هواتف/حواسب/أندرويد)",
+    "self_view": "بيانات المستخدم نفسه"
   }
 }

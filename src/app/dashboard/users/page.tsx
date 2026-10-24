@@ -42,10 +42,21 @@ export default async function UsersPage() {
   const canDelete =
     session.role === "super_admin" || (await hasPermission(session, "data.delete"));
 
+  // تغيير كلمات السر (بلاغ المالك 2026-10-25): users.password — السوبر أدمن بطبعه
+  // أو مفوَّض (المفوَّض لا يغيّر كلمة سر سوبر أدمن — حارس في الخادم)
+  const canResetPassword =
+    session.role === "super_admin" || (await hasPermission(session, "users.password"));
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <PageHeader title={tServer(dict, "usersPage.title")} subtitle={tServer(dict, "usersPage.subtitle")} />
-      <UsersManager canCreate={canCreate} isSuperAdmin={session.role === "super_admin"} myUserId={session.sub} canDelete={canDelete} />
+      <UsersManager
+        canCreate={canCreate}
+        isSuperAdmin={session.role === "super_admin"}
+        myUserId={session.sub}
+        canDelete={canDelete}
+        canResetPassword={canResetPassword}
+      />
     </div>
   );
 }

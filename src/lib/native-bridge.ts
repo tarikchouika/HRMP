@@ -122,3 +122,18 @@ export async function syncStatusBar(isDark: boolean): Promise<void> {
     /* الغلاف بلا إضافة شريط الحالة — لا شيء */
   }
 }
+
+/**
+ * إشعار نظام أصلي داخل تطبيق أندرويد (بلاغ المالك 2026-10-25 — صلاحية الإشعارات):
+ * إضافة Notify في الغلاف تطلبه عبر NotificationManager (قناة hrmp_general) بعد
+ * منح POST_NOTIFICATIONS وقت الإقلاع. خارج التطبيق (متصفح هواتف/حواسب) no-op
+ * آمن — الإشعارات هناك عبر Web Push القياسي (sw.js + VAPID).
+ */
+export async function showNativeNotification(title: string, body: string): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await callPlugin("Notify", "show", { title: String(title).slice(0, 200), body: String(body).slice(0, 400) });
+  } catch {
+    /* الغلاف بإصدار أقدم بلا إضافة Notify — لا شيء (الشارة تكفي) */
+  }
+}

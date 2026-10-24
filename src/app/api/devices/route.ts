@@ -1,10 +1,13 @@
 // HRMP — اشتراكات دفع المتصفح (المرحلة 5 — SPEC §7: Web Push مفتوح، محوّل قابل للتبديل)
 // GET: مفتاح VAPID العام (null = الدفع غير مفعّل) | POST: تسجيل اشتراك | DELETE: إلغاء
+// (بلاغ المالك 2026-10-25 — صلاحية الإشعارات): تسجيل اشتراك الدفع يستلزم
+// notifications.push (لكل الأدوار بطبعها — قابلة للتفويض والسحب من السوبر أدمن).
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
-import { requirePermission, AccessError } from "@/lib/rbac";
+import { AccessError, roleHas } from "@/lib/rbac";
+import { hasPermission } from "@/lib/delegations";
 import { vapidPublicKey } from "@/lib/notifications";
 
 const subscribeSchema = z.object({
@@ -19,7 +22,11 @@ const subscribeSchema = z.object({
 export async function GET() {
   try {
     const session = await getSession();
-    requirePermission(session, "self.view");
+    if (!session) throw new AccessError(401, "unauthenticated");
+    // مفتاح VAPID العام للمتصفح — رؤيته حاجة العميل لقراءة حالة الدفع (self.view كافية)
+    if (!roleHas(session.role, "self.view") && !(await hasPermission(session, "self.view"))) {
+      throw new AccessError(403, "forbidden");
+    }
     return NextResponse.json({ vapidPublicKey: vapidPublicKey() });
   } catch (error) {
     if (error instanceof AccessError) {
@@ -32,7 +39,12 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
-    requirePermission(session, "self.view");
+    if (!session) throw new AccessError(401, "unauthenticated");
+    // (بلاغ المالك 2026-10-25): صلاحية إشعارات الأجهزة — notifications.push
+    // (لكل الأدوار بطبعها في rbac.ts — والسوبر أدمن قد يسحبها/يمنحها بالتفويض)
+    const canPush =
+      roleHas(session.role, "notifications.push") || (await hasPermission(session, "notifications.push"));
+    if (!canPush) throw new AccessError(403, "notifications_forbidden");
 
     const parsed = subscribeSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
@@ -69,7 +81,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getSession();
-    requirePermission(session, "self.view");
+    if (!session) throw new AccessError(401, "unauthenticated");
 
     const url = new URL(req.url);
     const endpoint = url.searchParams.get("endpoint")?.trim() ?? "";

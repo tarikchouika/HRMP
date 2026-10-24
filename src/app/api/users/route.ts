@@ -24,7 +24,8 @@ function randomInitialPassword(): string {
   for (let i = 0; i < 12; i += 1) {
     out += alphabet[Math.floor(Math.random() * alphabet.length)];
   }
-  return `Fw-${out}!`;
+  // (إعادة التسمية 2026-10-24): البادئة Hr- بدل Fw- (بقية تغيير الاسم فاتتها الجولة)
+  return `Hr-${out}!`;
 }
 
 export async function GET() {

@@ -368,12 +368,15 @@ model DirectMessage {
   media       Bytes? // الحمولة للموقع null
   viewedAt    DateTime? // وقت مشاهدة المستقبِل (مقابل listenedAt للصوت)
   createdAt   DateTime  @default(now())
+  purgedAt    DateTime? // (بلاغ المالك 2026-10-25) لحظة مسح حمولة الفيديو (استهلاك أو TTL) — بعدها البث 410 — نفس سياسة الصوتيات
+  purgedBy    String? // من مسحها: معرّف المستقبِل/المشرف أو "ttl"
 
   sender    User @relation("DirectSender", fields: [senderId], references: [id])
   recipient User @relation("DirectRecipient", fields: [recipientId], references: [id])
 
   @@index([companyId, groupId, createdAt])
   @@index([recipientId, viewedAt])
+  @@index([purgedAt])
 }
 
 /// جلسة اتصال مباشر (بلاغ المالك 2026-10-24): صوت/صورة آني بين مستخدمَين عبر

@@ -18,6 +18,7 @@ export const PERMISSIONS = [
   "company.manage", // إدارة فروع/مواقع/مشاريع الشركة
   "users.manage", // إدارة مستخدمي الشركة (تعديل/تعطيل) — إنشاء الحسابات users.create
   "users.create", // تسجيل حسابات المستخدمين — السوبر أدمن وحده بطبعه (قاعدة المالك 2026-10-18) ويُفوَّض
+  "users.password", // (بلاغ المالك 2026-10-25) تغيير كلمة سر المستخدمين — السوبر أدمن وحده بطبعه ويُفوَّض للأدمن؛ المفوَّض لا يغيّر كلمة سر سوبر أدمن
   "data.delete", // الحذف النهائي (مستخدم/شركة/مشروع/موقع/فرع) — السوبر أدمن وحده بطبعه (أمر المالك 2026-10-23 «لا أستطيع مسح أو إزالة…») ويُفوَّض
   "teams.manage", // إدارة الفرق: إضافة/إزالة أعضاء، تعيين قائد، تحديد فرق الإحتياط
   "voice.use", // الرسائل الصوتية داخل فريقه (لكل مستخدم) — العزل بين الفرق في الخادم
@@ -33,6 +34,7 @@ export const PERMISSIONS = [
   "scheduling.manage", // تعيين البرامج اليومية
   "recruitment.manage", // إدارة الوظائف الشاغرة في مشاريع الشركة وطلبات التقديم (طلب المالك 2026-10-24)
   "seekers.verify", // مصادقة هوية الباحثين عن عمل (أمر المالك الصريح: الأدمن أو السوبر أدمن)
+  "notifications.push", // (بلاغ المالك 2026-10-25) إشعارات الأجهزة (هواتف/حواسب/أندرويد): تسجيل اشتراكات الدفع واستقبالها — لكل الأدوار بطبعها ويُفوَّض
   "self.view", // بيانات المستخدم نفسه فقط
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
@@ -49,6 +51,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "declarations.export",
     "audit.view",
     "voice.use",
+    "notifications.push",
     "self.view",
   ],
   admin: [
@@ -65,10 +68,11 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "scheduling.manage",
     "recruitment.manage",
     "seekers.verify",
+    "notifications.push",
     "self.view",
   ],
-  co_admin: ["attendance.manage", "scheduling.manage", "voice.use", "voice.admin", "location.view", "self.view"],
-  employee: ["self.view", "voice.use"],
+  co_admin: ["attendance.manage", "scheduling.manage", "voice.use", "voice.admin", "location.view", "notifications.push", "self.view"],
+  employee: ["self.view", "voice.use", "notifications.push"],
 };
 
 export function roleHas(role: string, permission: Permission): boolean {

@@ -18,6 +18,7 @@ import { hasPermission } from "@/lib/delegations";
 import { rateLimit } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { messagingAccess, canConverseWith, canOpenThread, contextGroupId, hasExistingThread, isSupervisor, latestThreadGroupId } from "@/lib/direct-messaging";
+import { purgeExpiredDirectVideos } from "@/lib/direct-ephemeral";
 
 export const DIRECT_PHOTO_MAX_BYTES = 3_000_000;
 export const DIRECT_VIDEO_MAX_BYTES = 8_000_000;
@@ -40,6 +41,8 @@ const listMeta = (m: {
   lng: number | null;
   accuracyM: number | null;
   viewedAt: Date | null;
+  purgedAt: Date | null;
+  purgedBy: string | null;
   createdAt: Date;
 }) => ({
   id: m.id,
@@ -52,6 +55,8 @@ const listMeta = (m: {
   lng: m.lng,
   accuracyM: m.accuracyM,
   viewedAt: m.viewedAt ? m.viewedAt.toISOString() : null,
+  purgedAt: m.purgedAt ? m.purgedAt.toISOString() : null,
+  purgedBy: m.purgedBy,
   createdAt: m.createdAt.toISOString(),
 });
 
@@ -70,6 +75,8 @@ export async function GET(req: NextRequest) {
     if (!(await canOpenThread(access, session, withParam))) {
       throw new AccessError(403, "forbidden");
     }
+    // مسح كسول لرسائل الفيديو منتهية العمر (TTL 72 ساعة) — نفس مبدأ الصوتيات
+    await purgeExpiredDirectVideos();
     const messages = await db.directMessage.findMany({
       where: {
         OR: [

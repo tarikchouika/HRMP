@@ -658,7 +658,14 @@
     "presenceLeftLine2": "the team zone",
     "presenceReturnedLine1": "Member returned to",
     "presenceReturnedLine2": "the team zone",
-    "presenceMeters": "m"
+    "presenceMeters": "m",
+    "enableTitle": "Enable device notifications",
+    "pushGranted": "Notifications enabled on this device",
+    "pushDenied": "Notifications denied — enable them in browser/system settings then retry",
+    "pushUnsupported": "This browser doesn't support push notifications — in-app notifications still work",
+    "pushNativeHint": "The app shows notifications through the Android system",
+    "pushGrantedHint": "You'll receive notifications even outside the platform",
+    "pushFailed": "Failed to register the device — please retry"
   },
   "payroll": {
     "title": "Payroll",
@@ -1474,7 +1481,17 @@
     "you": "You",
     "user": "User",
     "deleted": "User deleted permanently",
-    "deleteFailedHint": "Permanent deletion failed"
+    "deleteFailedHint": "Permanent deletion failed",
+    "resetPasswordTitle": "Change password",
+    "resetPasswordDesc": "New password for the user — auto-generated if left empty, shown once",
+    "resetPasswordLabel": "New password",
+    "resetPasswordPlaceholder": "Leave empty to auto-generate",
+    "resetPasswordHint": "8 characters minimum — shown once; all the user's sessions are invalidated immediately",
+    "resetPasswordOk": "Change password",
+    "resetPasswordDone": "Password updated",
+    "newPasswordTitle": "New password",
+    "cannotResetSuperAdmin": "Only the platform owner (super admin) can change a super admin's password",
+    "passwordRules": "The super admin holds this permission by nature — and may delegate it to admins"
   },
   "errors": {
     "title": "An unexpected error occurred",
@@ -1623,7 +1640,23 @@
       "worker_group_member_add": "Add member to group",
       "worker_group_member_remove": "Remove member from group",
       "worker_group_restore": "Restore worker group",
-      "worker_group_update": "Update worker group"
+      "worker_group_update": "Update worker group",
+      "call_started": "Direct call started",
+      "direct_message_send": "Visual/location message sent",
+      "user_password_reset": "User password changed (administratively)",
+      "recruitment_application_created": "Application submitted",
+      "recruitment_application_status": "Application status updated",
+      "recruitment_application_withdrawn": "Application withdrawn",
+      "recruitment_document_uploaded": "Identity document uploaded",
+      "recruitment_review_notified": "Supervision notified of a review",
+      "recruitment_seeker_register": "Job seeker registered",
+      "recruitment_seeker_verified": "Seeker channel verified",
+      "recruitment_seeker_approved": "Seeker identity approved",
+      "recruitment_seeker_rejected": "Seeker identity rejected",
+      "recruitment_vacancy_created": "Vacancy created",
+      "recruitment_vacancy_updated": "Vacancy updated",
+      "recruitment_vacancy_archived": "Vacancy archived",
+      "recruitment_vacancy_published": "Vacancy published"
     },
     "entities": {
       "accountant_grant": "Accountant privilege",
@@ -1652,7 +1685,13 @@
       "user": "User",
       "verification_policy": "Verification policy",
       "voice_message": "Voice message",
-      "worker_group": "Worker group"
+      "worker_group": "Worker group",
+      "direct_message": "Visual/location message",
+      "call_session": "Call session",
+      "job_seeker": "Job seeker",
+      "project_vacancy": "Vacancy",
+      "vacancy_application": "Application",
+      "device": "Notification device"
     },
     "actionLabel": "Action",
     "entityLabel": "Entity",
@@ -2129,5 +2168,29 @@
     "hasApplications": "Has applications",
     "registeredOn": "Registered on {date}",
     "reviewedOn": "Last reviewed {date}"
+  },
+  "permissions": {
+    "platform_manage": "Platform management (owner)",
+    "company_manage": "Company management (branches/sites/projects)",
+    "users_manage": "User management (edit/deactivate)",
+    "users_create": "User account creation",
+    "users_password": "User password changes",
+    "data_delete": "Permanent data deletion",
+    "teams_manage": "Team management (members/leaders)",
+    "voice_use": "Voice messaging within the team",
+    "voice_admin": "Messaging across all teams (supervision)",
+    "location_view": "Live location viewing",
+    "payroll_view": "Viewing payslips",
+    "payroll_approve": "Approving payslips",
+    "payroll_verify": "Verifying pay rules",
+    "declarations_review": "Reviewing official declarations",
+    "declarations_export": "Exporting official declarations",
+    "audit_view": "Viewing the audit log",
+    "attendance_manage": "Attendance management",
+    "scheduling_manage": "Schedule and shift management",
+    "recruitment_manage": "Vacancy management",
+    "seekers_verify": "Job seeker identity verification",
+    "notifications_push": "Device notifications (phones/desktops/Android)",
+    "self_view": "Own user data"
   }
 }

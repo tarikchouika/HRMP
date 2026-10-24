@@ -658,7 +658,14 @@
     "presenceLeftLine2": "la zone de l'équipe",
     "presenceReturnedLine1": "Le membre est revenu",
     "presenceReturnedLine2": "dans la zone de l'équipe",
-    "presenceMeters": "m"
+    "presenceMeters": "m",
+    "enableTitle": "Activer les notifications de l'appareil",
+    "pushGranted": "Notifications activées sur cet appareil",
+    "pushDenied": "Notifications refusées — activez-les dans les réglages du navigateur/système puis réessayez",
+    "pushUnsupported": "Ce navigateur ne prend pas en charge les notifications push — les notifications intégrées fonctionnent normalement",
+    "pushNativeHint": "L'application affiche les notifications via le système Android",
+    "pushGrantedHint": "Vous recevrez les notifications même hors de la plateforme",
+    "pushFailed": "Échec de l'enregistrement de l'appareil — réessayez"
   },
   "payroll": {
     "title": "Paie",
@@ -1474,7 +1481,17 @@
     "you": "Vous",
     "user": "Utilisateur",
     "deleted": "Utilisateur supprimé définitivement",
-    "deleteFailedHint": "Échec de la suppression définitive"
+    "deleteFailedHint": "Échec de la suppression définitive",
+    "resetPasswordTitle": "Modifier le mot de passe",
+    "resetPasswordDesc": "Nouveau mot de passe de l'utilisateur — généré automatiquement si laissé vide, affiché une seule fois",
+    "resetPasswordLabel": "Nouveau mot de passe",
+    "resetPasswordPlaceholder": "Laisser vide pour génération automatique",
+    "resetPasswordHint": "8 caractères minimum — affiché une seule fois ; toutes les sessions de l'utilisateur sont invalidées",
+    "resetPasswordOk": "Modifier le mot de passe",
+    "resetPasswordDone": "Mot de passe mis à jour",
+    "newPasswordTitle": "Nouveau mot de passe",
+    "cannotResetSuperAdmin": "Seul le propriétaire (super admin) peut modifier le mot de passe d'un super admin",
+    "passwordRules": "Le super admin détient cette permission de naissance — il peut la déléguer à l'admin"
   },
   "errors": {
     "title": "Une erreur inattendue s'est produite",
@@ -1623,7 +1640,23 @@
       "worker_group_member_add": "Ajouter un membre au groupe",
       "worker_group_member_remove": "Retirer un membre du groupe",
       "worker_group_restore": "Restaurer un groupe d'ouvriers",
-      "worker_group_update": "Modifier un groupe d'ouvriers"
+      "worker_group_update": "Modifier un groupe d'ouvriers",
+      "call_started": "Appel direct lancé",
+      "direct_message_send": "Envoi d'un message visuel/géolocalisé",
+      "user_password_reset": "Mot de passe modifié (administrativement)",
+      "recruitment_application_created": "Candidature envoyée",
+      "recruitment_application_status": "Statut de candidature mis à jour",
+      "recruitment_application_withdrawn": "Candidature retirée",
+      "recruitment_document_uploaded": "Pièce d'identité déposée",
+      "recruitment_review_notified": "Supervision notifiée d'une revue",
+      "recruitment_seeker_register": "Inscription d'un candidat",
+      "recruitment_seeker_verified": "Canal du candidat vérifié",
+      "recruitment_seeker_approved": "Identité du candidat approuvée",
+      "recruitment_seeker_rejected": "Identité du candidat rejetée",
+      "recruitment_vacancy_created": "Offre créée",
+      "recruitment_vacancy_updated": "Offre mise à jour",
+      "recruitment_vacancy_archived": "Offre archivée",
+      "recruitment_vacancy_published": "Offre publiée"
     },
     "entities": {
       "accountant_grant": "Privilège comptable",
@@ -1652,7 +1685,13 @@
       "user": "Utilisateur",
       "verification_policy": "Politique de vérification",
       "voice_message": "Message vocal",
-      "worker_group": "Groupe d'ouvriers"
+      "worker_group": "Groupe d'ouvriers",
+      "direct_message": "Message visuel/géolocalisé",
+      "call_session": "Session d'appel",
+      "job_seeker": "Candidat",
+      "project_vacancy": "Offre d'emploi",
+      "vacancy_application": "Candidature",
+      "device": "Appareil de notifications"
     },
     "actionLabel": "Action",
     "entityLabel": "Entité",
@@ -2129,5 +2168,29 @@
     "hasApplications": "A des candidatures",
     "registeredOn": "Inscrit le {date}",
     "reviewedOn": "Dernière revue {date}"
+  },
+  "permissions": {
+    "platform_manage": "Gestion de la plateforme (propriétaire)",
+    "company_manage": "Gestion de la société (filiales/sites/projets)",
+    "users_manage": "Gestion des utilisateurs (modification/désactivation)",
+    "users_create": "Création de comptes utilisateurs",
+    "users_password": "Modification des mots de passe des utilisateurs",
+    "data_delete": "Suppression définitive des données",
+    "teams_manage": "Gestion des équipes (membres/chefs)",
+    "voice_use": "Messagerie vocale au sein de l'équipe",
+    "voice_admin": "Messagerie sur toutes les équipes (supervision)",
+    "location_view": "Consultation des positions en direct",
+    "payroll_view": "Consultation des fiches de paie",
+    "payroll_approve": "Approbation des fiches de paie",
+    "payroll_verify": "Vérification des règles de paie",
+    "declarations_review": "Révision des déclarations officielles",
+    "declarations_export": "Export des déclarations officielles",
+    "audit_view": "Consultation du journal d'audit",
+    "attendance_manage": "Gestion de la présence",
+    "scheduling_manage": "Gestion des plannings et postes",
+    "recruitment_manage": "Gestion des offres d'emploi",
+    "seekers_verify": "Authentification des candidats",
+    "notifications_push": "Notifications des appareils (mobiles/ordinateurs/Android)",
+    "self_view": "Données propres de l'utilisateur"
   }
 }

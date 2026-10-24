@@ -224,14 +224,27 @@ jobs:
           cat > "$MAIN" <<'JAVA'
           package ma.fwms.app;
 
+          import android.Manifest;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
           import android.os.Bundle;
           import android.webkit.WebView;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.app.NotificationCompat;
+          import androidx.core.app.NotificationManagerCompat;
+          import androidx.core.content.ContextCompat;
           import androidx.core.view.ViewCompat;
           import androidx.core.view.WindowCompat;
           import androidx.core.view.WindowInsetsCompat;
           import androidx.core.view.WindowInsetsControllerCompat;
           import com.getcapacitor.BridgeActivity;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.Plugin;
           import com.getcapacitor.WebViewListener;
+          import com.getcapacitor.annotation.CapacitorPlugin;
 
           /**
            * HRMP — نشاط التطبيق (بلاغ المالك 2026-10-24):
@@ -252,11 +265,17 @@ jobs:
 
               @Override
               public void onCreate(Bundle savedInstanceState) {
+                  // (بلاغ المالك 2026-10-25 — صلاحية الإشعارات): إضافة Notify الأصلية
+                  // تُسجّل قبل super.onCreate (نمط Capacitor) — الواجهة تستدعيها عبر
+                  // window.Capacitor.nativePromise("Notify", "show", {...})
+                  registerPlugin(NotifyPlugin.class);
                   super.onCreate(savedInstanceState);
                   try {
                       WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
                       bridgeWebView = getBridge().getWebView();
                       enterImmersiveMode();
+                      requestNotificationsPermission();
+                      ensureNotificationChannel();
 
                       // التنقّل الكامل (دخول/خروج) ينشئ <html> جديدًا ⇒ إعادة الإخفاء والحقن
                       getBridge().addWebViewListener(new WebViewListener() {
@@ -290,6 +309,76 @@ jobs:
                   // بعد أي حوار نظام أو درج إشعارات أو تبديل تطبيقات قد تعود
                   // الشرائط ظاهرة — إعادة الإخفاء عند استعادة التركيز
                   if (hasFocus) enterImmersiveMode();
+              }
+
+              /** (بلاغ المالك 2026-10-25 — صلاحية الإشعارات): طلب POST_NOTIFICATIONS
+               *  وقت التشغيل على أندرويد 13+ (API 33) — قبلها الإذن ضمني عند التثبيت.
+               *  لا يحجب الإقلاع أبدًا: الرفض الآن يعني طلبًا لاحقًا عند تفعيل
+               *  الإشعارات من الواجهة (زر الجرس) أو من إعدادات النظام. */
+              private void requestNotificationsPermission() {
+                  try {
+                      if (Build.VERSION.SDK_INT >= 33) {
+                          if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                                  != PackageManager.PERMISSION_GRANTED) {
+                              ActivityCompat.requestPermissions(
+                                  this,
+                                  new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                                  4711);
+                          }
+                      }
+                  } catch (Throwable ignored) {
+                      // لا شيء: التطبيق يعمل والإشعار داخل التطبيق كافٍ
+                  }
+              }
+
+              /** قناة الإشعارات العامة (أندرويد 8+): إشعارات المنصة الجديدة تصب فيها */
+              private void ensureNotificationChannel() {
+                  try {
+                      if (Build.VERSION.SDK_INT >= 26) {
+                          NotificationManager nm = getSystemService(NotificationManager.class);
+                          if (nm != null && nm.getNotificationChannel("hrmp_general") == null) {
+                              NotificationChannel channel = new NotificationChannel(
+                                  "hrmp_general",
+                                  "HRMP",
+                                  NotificationManager.IMPORTANCE_DEFAULT);
+                              channel.setDescription("إشعارات منصة إدارة الموارد البشرية");
+                              nm.createNotificationChannel(channel);
+                          }
+                      }
+                  } catch (Throwable ignored) {
+                      // لا شيء
+                  }
+              }
+
+              /** إضافة Notify الأصلية: إشعار نظام من الواجهة عبر الجسر المنخفض
+               *  (window.Capacitor.nativePromise("Notify", "show", {title, body})) —
+               *  تُستدعى عند وصول جديد والشاشة مخفية (notification-bell.tsx) */
+              @CapacitorPlugin(name = "Notify")
+              public static class NotifyPlugin extends Plugin {
+                  @PluginMethod
+                  public void show(PluginCall call) {
+                      try {
+                          String title = call.getString("title", "HRMP");
+                          String body = call.getString("body", "");
+                          android.content.Context ctx = getContext();
+                          if (Build.VERSION.SDK_INT >= 33
+                              && ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS)
+                                  != PackageManager.PERMISSION_GRANTED) {
+                              call.resolve();
+                              return; // الإذن مرفوض — لا إشعار نظام (داخل التطبيق يكفي)
+                          }
+                          NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, "hrmp_general")
+                              .setSmallIcon(android.R.drawable.stat_notify_chat)
+                              .setContentTitle(title)
+                              .setContentText(body)
+                              .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                              .setAutoCancel(true);
+                          NotificationManagerCompat.from(ctx).notify((int) System.currentTimeMillis(), builder.build());
+                          call.resolve();
+                      } catch (Throwable t) {
+                          call.resolve(); // لا نُفشل الواجهة أبدًا
+                      }
+                  }
               }
 
               /** الوضع الغامر اللاصق: الشرائط مخفية وتظهر عابرًا بالسحب ثم تختفي وحدها */
@@ -355,6 +444,10 @@ jobs:
           grep -q "hide(WindowInsetsCompat.Type.systemBars())" "$MAIN" || { echo "✗ إخفاء الشرائط مفقود"; exit 1; }
           # تحقّق نوعي: مستمع الـinsets يمرّر View لا WebView ⇒ الجسر المحفوظ يُستعمل داخل injectInsets
           grep -q "private WebView bridgeWebView" "$MAIN" || { echo "✗ متغيّر الجسر مفقود"; exit 1; }
+          # (بلاغ المالك 2026-10-25): تحقّق إضافة Notify + طلب POST_NOTIFICATIONS
+          grep -q "registerPlugin(NotifyPlugin.class)" "$MAIN" || { echo "✗ تسجيل إضافة Notify مفقود"; exit 1; }
+          grep -q "Manifest.permission.POST_NOTIFICATIONS" "$MAIN" || { echo "✗ طلب إذن الإشعارات مفقود"; exit 1; }
+          grep -q "hrmp_general" "$MAIN" || { echo "✗ قناة الإشعارات مفقودة"; exit 1; }
 
           # ── (2) الأنماط: الوضع الغامر على ثيم التشغيل الفعلي (نهاري/ليلي) ──
           # BridgeActivity يبدّل ثيم النشاط إلى AppTheme.NoActionBar وقت التشغيل
@@ -432,6 +525,8 @@ jobs:
               '    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n'
               '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n'
               '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n'
+              '    <!-- Notifications (owner request 2026-10-25): إشعارات النظام للأندرويد 13+ (POST_NOTIFICATIONS) -->\n'
+              '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n'
               '    <!-- required=false: الأجهزة بلا هذه العتاد تثبّت التطبيق وتعمل — الإذن يُطلب عند الحاجة -->\n'
               '    <uses-feature android:name="android.hardware.camera" android:required="false" />\n'
               '    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />\n'
@@ -450,8 +545,8 @@ jobs:
           open(path, "w", encoding="utf-8").write(xml)
           PY
           grep -q "windowSoftInputMode" "$MANIFEST" || { echo "✗ رقعة لوحة المفاتيح مفقودة"; exit 1; }
-          # تحقّق حتمي: الصلاحيات الخمس + العتاد غير الإلزامي — أي نقص يُسقط البناء
-          for P in CAMERA RECORD_AUDIO MODIFY_AUDIO_SETTINGS ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION; do
+          # تحقّق حتمي: الصلاحيات الست + العتاد غير الإلزامي — أي نقص يُسقط البناء
+          for P in CAMERA RECORD_AUDIO MODIFY_AUDIO_SETTINGS ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS; do
             grep -q "android.permission.$P" "$MANIFEST" || { echo "✗ إذن $P مفقود من Manifest"; exit 1; }
           done
           grep -q 'android.hardware.camera" android:required="false"' "$MANIFEST" || { echo "✗ uses-feature الكاميرا مفقودة"; exit 1; }
