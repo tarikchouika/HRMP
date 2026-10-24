@@ -12,6 +12,7 @@ import {
   Mail,
   RefreshCcw,
   Search,
+  Send,
   Smartphone,
   UserRoundX,
   XCircle,
@@ -43,6 +44,8 @@ type SeekerRow = {
   status: string;
   emailVerified: boolean;
   phoneVerified: boolean;
+  telegramVerified: boolean;
+  telegramUsername: string | null;
   hasDocument: boolean;
   documentType: string | null;
   documentName: string | null;
@@ -273,6 +276,15 @@ export function SeekersManager() {
                     <Smartphone className="size-3" aria-hidden />
                     {s.phoneVerified ? t("seekersPage.phoneVerified") : t("seekersPage.notVerified")}
                   </span>
+                  {s.telegramVerified && (
+                    <span
+                      className="flex items-center gap-1 rounded-full border border-primary/35 bg-primary/10 px-2 py-0.5 text-primary"
+                      title={s.telegramUsername ? `@${s.telegramUsername}` : undefined}
+                    >
+                      <Send className="size-3" aria-hidden />
+                      {t("seekersPage.telegramVerified")}
+                    </span>
+                  )}
                   {s.documentType && (
                     <span className="flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-muted-foreground">
                       <FileImage className="size-3" aria-hidden />
@@ -303,7 +315,12 @@ export function SeekersManager() {
                     <Button
                       size="sm"
                       className="gap-1.5 font-semibold"
-                      disabled={busyId === s.id || !s.emailVerified || !s.phoneVerified || !s.hasDocument}
+                      disabled={
+                        busyId === s.id ||
+                        !s.emailVerified ||
+                        (!s.phoneVerified && !s.telegramVerified) ||
+                        !s.hasDocument
+                      }
                       onClick={() => void approve(s)}
                     >
                       {busyId === s.id ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : <CheckCircle2 className="size-3.5" aria-hidden />}

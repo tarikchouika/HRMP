@@ -6,6 +6,8 @@
 //   البريد: SMTP عبر nodemailer (SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/SMTP_FROM)
 //   الهاتف: بوابة HTTP عامة (SMS_WEBHOOK_URL + SMS_WEBHOOK_TOKEN) تقبل أي مزوّد
 //           مغربي (POST JSON {phone, message}) — مرونة كاملة للمالك.
+//   تيليغرام: البوت نفسه (TELEGRAM_BOT_TOKEN) بعد ربط محادثة الباحث — بديل عن
+//           SMS حين لا يتوفر مزوّد هاتف (طلب المالك 2026-10-24).
 // بلا مزوّد مضبوط في الإنتاج: رفض صريح 503 برسالة إدارية واضحة (لا حلقة أمنية
 // تُختصر). وفي وضع الاختيار الصريح OTP_DEV_SHOW_CODE=1 يُعاد الرمز في الاستجابة
 // (تجربة محلية بلا مزوّد — موثّق بتحذير في السجل والواجهة).
@@ -13,11 +15,12 @@ import { createHash, randomInt } from "node:crypto";
 import nodemailer from "nodemailer";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
+import { sendTelegramTo } from "@/lib/telegram";
 import { getDictionary, tServer } from "@/i18n/get-dictionary";
 import type { Locale } from "@/i18n/config";
 import { OTP_CODE_DIGITS, OTP_MAX_ATTEMPTS, OTP_TTL_MS } from "./types";
 
-export type OtpChannel = "email" | "phone";
+export type OtpChannel = "email" | "phone" | "telegram";
 
 export type SendResult =
   | { ok: true; devCode?: string }
@@ -93,6 +96,16 @@ async function sendSmsOtp(phoneE164: string, code: string, locale: Locale): Prom
   }
 }
 
+function telegramConfigured(): boolean {
+  return !!process.env.TELEGRAM_BOT_TOKEN;
+}
+
+async function sendTelegramOtp(chatId: string, code: string, locale: Locale): Promise<boolean> {
+  const dict = getDictionary(locale);
+  const message = tServer(dict, "jobs.otp.telegramBody", { code });
+  return sendTelegramTo(chatId, message);
+}
+
 // ─── الإصدار والتحقق ──────────────────────────────────────────────────────────
 
 /** إصدار وإرسال رمز لقناة (بريد/هاتف) — حدود المعدل: 3 لكل هدف/10د + 10 لكل IP/ساعة */
@@ -123,7 +136,8 @@ export async function issueAndSendOtp(
     data: { channel, target, codeHash: hashCode(target, code), expiresAt },
   });
 
-  const providerConfigured = channel === "email" ? smtpConfigured() : smsWebhookConfigured();
+  const providerConfigured =
+    channel === "email" ? smtpConfigured() : channel === "phone" ? smsWebhookConfigured() : telegramConfigured();
   if (!providerConfigured) {
     if (isDevShowCode()) {
       console.warn(
@@ -132,12 +146,17 @@ export async function issueAndSendOtp(
       return { ok: true, devCode: code };
     }
     console.error(
-      `[HRMP][otp] لا مزوّد مضبوط للقناة ${channel} — راجع .env.example (SMTP_* للبريد / SMS_WEBHOOK_* للهاتف)`
+      `[HRMP][otp] لا مزوّد مضبوط للقناة ${channel} — راجع .env.example (SMTP_* للبريد / SMS_WEBHOOK_* للهاتف / TELEGRAM_BOT_TOKEN لتيليغرام)`
     );
     return { ok: false, code: "provider_not_configured" };
   }
 
-  const sent = channel === "email" ? await sendEmailOtp(target, code, locale) : await sendSmsOtp(target, code, locale);
+  const sent =
+    channel === "email"
+      ? await sendEmailOtp(target, code, locale)
+      : channel === "phone"
+        ? await sendSmsOtp(target, code, locale)
+        : await sendTelegramOtp(target, code, locale);
   if (!sent) return { ok: false, code: "provider_error" };
   return { ok: true };
 }

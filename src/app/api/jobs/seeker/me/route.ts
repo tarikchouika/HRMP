@@ -23,6 +23,9 @@ export async function GET() {
           status: true,
           emailVerifiedAt: true,
           phoneVerifiedAt: true,
+          telegramChatId: true,
+          telegramUsername: true,
+          telegramVerifiedAt: true,
           documentType: true,
           documentName: true,
           rejectionReason: true,
@@ -34,13 +37,16 @@ export async function GET() {
     if (!profile) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
+    const { telegramChatId, ...safeProfile } = profile;
     return NextResponse.json({
       seeker: {
-        ...profile,
+        ...safeProfile,
         phone: `+${profile.phone}`,
         hasDocument: !!profile.documentType,
         emailVerified: !!profile.emailVerifiedAt,
         phoneVerified: !!profile.phoneVerifiedAt,
+        telegramLinked: !!telegramChatId,
+        telegramVerified: !!profile.telegramVerifiedAt,
       },
       applications,
     });

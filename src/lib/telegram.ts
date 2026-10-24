@@ -1,18 +1,23 @@
-// HRMP — إشعارات المشرف عبر Telegram (طلب المالك 2026-10-24)
+// HRMP — Telegram: قناة OTP للباحث + إشعارات المشرف (طلب المالك 2026-10-24)
 // ---------------------------------------------------------------------------
-// البوت لا يرسل OTP إلى الباحثين: تيليغرام لا يملك أرقام هواتفهم ولا يستطيع
-// إرسال SMS. وظيفته هنا إشعار المشرف (Super Admin) عند اكتمال توثيق باحث
-// (بريد + هاتف + وثيقة) ليراجعه من لوحة التحكم، وأوامر حالة قصيرة (/pending,
-// /status). الإرسال لا يرمي أبدًا ولا يُفشل العملية الأصلية.
+// يُستعمل لإرسال رمز OTP إلى محادثة الباحث بعد ربطها (قناة بديلة عن SMS)،
+// ولإشعار المشرف (Super Admin) عند اكتمال توثيق باحث (بريد + هاتف/تيليغرام +
+// وثيقة)، ولأوامر حالة قصيرة (/pending, /status). الإرسال لا يرمي أبدًا ولا
+// يُفشل العملية الأصلية.
 import { db } from "@/lib/db";
 
 // نوع بيئي محلي: المشروع لا يحمّل @types/node في تحقق الأنواع (خط الأساس 120)
 declare const process: { env: Record<string, string | undefined> };
 const env = process.env;
 
+/** قاعدة Telegram API — قابلة للتبديل في اختبار معزول فقط (الافتراضي الرسمي) */
+function apiRoot(): string {
+  return (env.TELEGRAM_API_BASE?.trim() || "https://api.telegram.org").replace(/\/+$/, "");
+}
+
 function botBase(): string | null {
   const token = env.TELEGRAM_BOT_TOKEN;
-  return token ? `https://api.telegram.org/bot${token}` : null;
+  return token ? `${apiRoot()}/bot${token}` : null;
 }
 
 export function telegramConfigured(): boolean {
@@ -35,8 +40,19 @@ export async function sendTelegramTo(chatId: string, text: string): Promise<bool
       signal: AbortSignal.timeout(8_000),
     });
     if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      console.error(`[HRMP][telegram] sendMessage ${res.status}: ${detail.slice(0, 200)}`);
+      // لا نسجّل جسم الاستجابة الخام: قد يحمل نص الرسالة (ومنها رمز OTP) في
+      // استجابات غير قياسية. نكتفي بوصف خطأ Telegram القياسي للتشخيص.
+      const raw = await res.text().catch(() => "");
+      let description = "";
+      try {
+        const parsed = JSON.parse(raw) as { description?: unknown };
+        if (typeof parsed.description === "string") description = parsed.description;
+      } catch {
+        // جسم غير JSON — لا يُسجَّل تفاديًا لتسريب محتوى الرسالة
+      }
+      console.error(
+        `[HRMP][telegram] sendMessage ${res.status}: ${description.slice(0, 200) || "no description"}`
+      );
       return false;
     }
     return true;
@@ -54,7 +70,7 @@ export async function sendTelegramAdmin(text: string): Promise<boolean> {
 
 /**
  * إشعار المشرف حين يصبح الباحث جاهزًا للمصادقة فعلًا:
- * status=pending + بريد موثّق + هاتف موثّق + وثيقة مرفوعة.
+ * status=pending + بريد موثّق + (هاتف أو تيليغرام موثّق) + وثيقة مرفوعة.
  * يُكتب قيد AuditLog عند نجاح الإرسال فقط، فيمنع تكرار الإشعار عند إعادة الرفع.
  */
 export async function notifySeekerReady(seekerId: string): Promise<void> {
@@ -75,6 +91,8 @@ export async function notifySeekerReady(seekerId: string): Promise<void> {
         status: true,
         emailVerifiedAt: true,
         phoneVerifiedAt: true,
+        telegramVerifiedAt: true,
+        telegramUsername: true,
         documentType: true,
       },
     });
@@ -82,17 +100,20 @@ export async function notifySeekerReady(seekerId: string): Promise<void> {
       !seeker ||
       seeker.status !== "pending" ||
       !seeker.emailVerifiedAt ||
-      !seeker.phoneVerifiedAt ||
+      (!seeker.phoneVerifiedAt && !seeker.telegramVerifiedAt) ||
       !seeker.documentType
     ) {
       return;
     }
 
+    const secondFactor = seeker.phoneVerifiedAt
+      ? `الهاتف: +${seeker.phone} (SMS)`
+      : `تيليغرام: ${seeker.telegramUsername ? `@${seeker.telegramUsername}` : "محادثة مربوطة"} (OTP)`;
     const text = [
       "🔔 HRMP — باحث جاهز للمصادقة",
       `الاسم: ${seeker.fullName}`,
       `البريد: ${seeker.email}`,
-      `الهاتف: +${seeker.phone}`,
+      secondFactor,
       "الوثيقة: مرفوعة ومُتحقَّق منها آليًا",
       "المراجعة: https://hrmp.pages.dev/dashboard/seekers",
     ].join("\n");

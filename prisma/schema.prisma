@@ -1175,31 +1175,38 @@ model OwnershipTransfer {
 
 /// باحث عن عمل — حساب عام مستقل (لا يظهر في مستخدمي الشركات حتى توظيفه فعليًا)
 model JobSeeker {
-  id                    String    @id @default(cuid())
-  email                 String    @unique // مطبَّع: أحرف صغيرة بلا فراغات
-  phone                 String    @unique // مطبَّع بصيغة دولية +212XXXXXXXXX
-  fullName              String
-  passwordHash          String
-  locale                String    @default("ar")
-  /// التحقق الآلي: وقت نجاح OTP البريد/الهاتف — التقديم يتطلبهما معًا
-  emailVerifiedAt       DateTime?
-  phoneVerifiedAt       DateTime?
+  id                         String    @id @default(cuid())
+  email                      String    @unique // مطبَّع: أحرف صغيرة بلا فراغات
+  phone                      String    @unique // مطبَّع بصيغة دولية +212XXXXXXXXX
+  fullName                   String
+  passwordHash               String
+  locale                     String    @default("ar")
+  /// التحقق الآلي: البريد إلزامي + (الهاتف أو تيليغرام) كعامل ثانٍ — مع الوثيقة
+  emailVerifiedAt            DateTime?
+  phoneVerifiedAt            DateTime?
+  /// ربط تيليغرام: قناة OTP بديلة للهاتف (طلب المالك 2026-10-24) — chat id فريد
+  telegramChatId             String?   @unique
+  telegramUsername           String?
+  telegramLinkTokenHash      String?   @unique
+  telegramLinkTokenExpiresAt DateTime?
+  telegramLinkedAt           DateTime?
+  telegramVerifiedAt         DateTime?
   /// وثيقة الهوية (بطاقة وطنية / جواز سفر / رخصة سياقة) — صورة ≤ 5MB داخل القاعدة
-  documentType          String? // national_id | passport | driver_license
-  documentName          String? // اسم الملف الأصلي (للعرض فقط)
-  documentMime          String? // image/jpeg | image/png | image/webp
-  documentBytes         Bytes? // محتوى الصورة — يُخدم لمصادقي الهوية حصرًا
-  documentHash          String? // SHA-256 (سلامة + كشف التكرار)
+  documentType               String? // national_id | passport | driver_license
+  documentName               String? // اسم الملف الأصلي (للعرض فقط)
+  documentMime               String? // image/jpeg | image/png | image/webp
+  documentBytes              Bytes? // محتوى الصورة — يُخدم لمصادقي الهوية حصرًا
+  documentHash               String? // SHA-256 (سلامة + كشف التكرار)
   /// مصادقة الأدمن/السوبر أدمن (الأمر الصريح للمالك): pending → approved|rejected
-  status                String    @default("pending") // pending | approved | rejected
-  rejectionReason       String?
-  reviewedById          String? // userId للمصادِق (User.id — مرجع منطقي بلا FK: الباحث كيان عام)
-  reviewedAt            DateTime?
-  isActive              Boolean   @default(true) // تعطيل حساب (إساءة مثلًا) — يمنع الدخول والتقديم
-  lastLoginAt           DateTime?
-  sessionsInvalidatedAt DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  status                     String    @default("pending") // pending | approved | rejected
+  rejectionReason            String?
+  reviewedById               String? // userId للمصادِق (User.id — مرجع منطقي بلا FK: الباحث كيان عام)
+  reviewedAt                 DateTime?
+  isActive                   Boolean   @default(true) // تعطيل حساب (إساءة مثلًا) — يمنع الدخول والتقديم
+  lastLoginAt                DateTime?
+  sessionsInvalidatedAt      DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
   applications VacancyApplication[]
 
@@ -1207,11 +1214,11 @@ model JobSeeker {
   @@index([isActive])
 }
 
-/// رمز تحقق أحادي الاستخدام (OTP) للتسجيل العام — بريد أو هاتف
+/// رمز تحقق أحادي الاستخدام (OTP) للتسجيل العام — بريد أو هاتف أو تيليغرام
 model OtpCode {
   id         String    @id @default(cuid())
-  channel    String // email | phone
-  target     String // البريد المطبَّع أو الهاتف بصيغته الدولية
+  channel    String // email | phone | telegram
+  target     String // البريد المطبَّع أو الهاتف الدولي أو Telegram chat id
   codeHash   String // SHA-256(رمز 6 أرقام + ملح) — الرمز ذاته لا يُخزَّن أبدًا
   purpose    String    @default("seeker_register") // نطاق الرمز (توسعة مستقبلية)
   attempts   Int       @default(0) // عدّاد المحاولات (حد 5 ثم إبطال الرمز)

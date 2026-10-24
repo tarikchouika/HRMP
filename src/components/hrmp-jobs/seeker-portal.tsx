@@ -14,6 +14,7 @@ import {
   LoaderCircle,
   LogOut,
   Mail,
+  Send,
   Smartphone,
   XCircle,
 } from "lucide-react";
@@ -33,6 +34,9 @@ type SeekerProfile = {
   status: string;
   emailVerified: boolean;
   phoneVerified: boolean;
+  telegramLinked: boolean;
+  telegramVerified: boolean;
+  telegramUsername: string | null;
   hasDocument: boolean;
   documentType: string | null;
   documentName: string | null;
@@ -116,7 +120,12 @@ export function SeekerPortal() {
 
   const checks = [
     { done: profile.emailVerified, label: t("jobs.me.checkEmail"), href: "/jobs/register", Icon: Mail },
-    { done: profile.phoneVerified, label: t("jobs.me.checkPhone"), href: "/jobs/register", Icon: Smartphone },
+    {
+      done: profile.phoneVerified || profile.telegramVerified,
+      label: t("jobs.me.checkPhone"),
+      href: "/jobs/register",
+      Icon: profile.telegramVerified ? Send : Smartphone,
+    },
     { done: profile.hasDocument, label: t("jobs.me.checkDoc"), href: "/jobs/register", Icon: BadgeCheck },
     { done: profile.status === "approved", label: t("jobs.me.checkAdmin"), href: null, Icon: CheckCircle2 },
   ];
@@ -177,6 +186,11 @@ export function SeekerPortal() {
               <Smartphone className="size-3.5 shrink-0 text-primary" aria-hidden />
               {profile.phone}
             </p>
+            {profile.telegramUsername && (
+              <p className="flex items-center gap-2 text-muted-foreground" dir="ltr">
+                <Send className="size-3.5 shrink-0 text-primary" aria-hidden />@{profile.telegramUsername}
+              </p>
+            )}
           </div>
           <div>
             <p className="mb-2 text-sm font-semibold">{t("jobs.me.checklist")}</p>

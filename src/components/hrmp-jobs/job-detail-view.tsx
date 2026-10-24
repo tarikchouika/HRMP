@@ -39,6 +39,7 @@ type SeekerMe = {
     status: string;
     emailVerified: boolean;
     phoneVerified: boolean;
+    telegramVerified: boolean;
     hasDocument: boolean;
   };
   applications: { vacancy: { id: string }; status: string }[];
@@ -112,13 +113,14 @@ export function JobDetailView({ vacancy }: { vacancy: PublicVacancy }) {
   }
 
   const seeker = me?.seeker;
+  const hasSecondFactor = !!seeker && (seeker.phoneVerified || seeker.telegramVerified);
   const canApply =
-    seeker?.status === "approved" && seeker.emailVerified && seeker.phoneVerified && seeker.hasDocument;
+    seeker?.status === "approved" && seeker.emailVerified && hasSecondFactor && seeker.hasDocument;
   const gateHint = !seeker
     ? null
     : !seeker.emailVerified
       ? t("jobs.me.verifyEmail")
-      : !seeker.phoneVerified
+      : !hasSecondFactor
         ? t("jobs.me.verifyPhone")
         : !seeker.hasDocument
           ? t("jobs.me.uploadDoc")

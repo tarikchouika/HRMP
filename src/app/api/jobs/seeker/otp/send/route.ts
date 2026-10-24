@@ -7,7 +7,7 @@ import { getSeekerSession } from "@/lib/recruitment/seeker-auth";
 import { issueAndSendOtp, purgeExpiredOtps } from "@/lib/recruitment/otp";
 import { normalizeEmail, normalizeMoroccanPhone } from "@/lib/recruitment/types";
 
-const schema = z.object({ channel: z.enum(["email", "phone"]) });
+const schema = z.object({ channel: z.enum(["email", "phone", "telegram"]) });
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +22,15 @@ export async function POST(req: NextRequest) {
 
     const seeker = await db.jobSeeker.findUnique({
       where: { id: session.sub },
-      select: { email: true, phone: true, emailVerifiedAt: true, phoneVerifiedAt: true, locale: true },
+      select: {
+        email: true,
+        phone: true,
+        emailVerifiedAt: true,
+        phoneVerifiedAt: true,
+        telegramChatId: true,
+        telegramVerifiedAt: true,
+        locale: true,
+      },
     });
     if (!seeker) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -33,11 +41,19 @@ export async function POST(req: NextRequest) {
     if (body.data.channel === "phone" && seeker.phoneVerifiedAt) {
       return NextResponse.json({ error: "already_verified" }, { status: 409 });
     }
+    if (body.data.channel === "telegram" && seeker.telegramVerifiedAt) {
+      return NextResponse.json({ error: "already_verified" }, { status: 409 });
+    }
+    if (body.data.channel === "telegram" && !seeker.telegramChatId) {
+      return NextResponse.json({ error: "telegram_not_linked" }, { status: 409 });
+    }
 
     const target =
       body.data.channel === "email"
         ? normalizeEmail(seeker.email)
-        : normalizeMoroccanPhone(seeker.phone);
+        : body.data.channel === "phone"
+          ? normalizeMoroccanPhone(seeker.phone)
+          : seeker.telegramChatId;
     if (!target) {
       return NextResponse.json({ error: "invalid_target" }, { status: 400 });
     }

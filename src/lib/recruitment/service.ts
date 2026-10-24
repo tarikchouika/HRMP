@@ -135,16 +135,21 @@ export async function registerSeeker(
   return ok({ id: seeker.id });
 }
 
-/** تحقق OTP لقناة الباحث — يثبّت emailVerifiedAt/phoneVerifiedAt مرة واحدة */
+/** تحقق OTP لقناة الباحث — يثبّت emailVerifiedAt/phoneVerifiedAt/telegramVerifiedAt */
 export async function markChannelVerified(
   seekerId: string,
-  channel: "email" | "phone"
+  channel: "email" | "phone" | "telegram"
 ): Promise<Result<true>> {
   const seeker = await db.jobSeeker.findUnique({ where: { id: seekerId }, select: { id: true } });
   if (!seeker) return err("not_found");
   await db.jobSeeker.update({
     where: { id: seekerId },
-    data: channel === "email" ? { emailVerifiedAt: new Date() } : { phoneVerifiedAt: new Date() },
+    data:
+      channel === "email"
+        ? { emailVerifiedAt: new Date() }
+        : channel === "phone"
+          ? { phoneVerifiedAt: new Date() }
+          : { telegramVerifiedAt: new Date() },
   });
   await writeAudit({ action: "recruitment.seeker.verified", entity: "JobSeeker", entityId: seekerId, after: { channel } });
   // إشعار المشرف إن اكتمل التوثيق المزدوج + الوثيقة بهذه الخطوة (خلفية بلا حجب)
@@ -317,12 +322,14 @@ export async function applyToVacancy(
       status: true,
       emailVerifiedAt: true,
       phoneVerifiedAt: true,
+      telegramVerifiedAt: true,
       documentType: true,
     },
   });
   if (!seeker || !seeker.isActive) return err("not_found");
   if (!seeker.emailVerifiedAt) return err("email_unverified");
-  if (!seeker.phoneVerifiedAt) return err("phone_unverified");
+  // العامل الثاني: هاتف موثّق بـSMS أو محادثة تيليغرام موثّقة بـOTP (بديل معتمد)
+  if (!seeker.phoneVerifiedAt && !seeker.telegramVerifiedAt) return err("phone_unverified");
   if (!seeker.documentType) return err("document_missing");
   if (seeker.status !== "approved") return err("not_approved");
 
@@ -598,6 +605,7 @@ export async function listVacancyApplications(session: SessionPayload, vacancyId
           documentType: true,
           emailVerifiedAt: true,
           phoneVerifiedAt: true,
+          telegramVerifiedAt: true,
         },
       },
     },
@@ -619,6 +627,7 @@ export async function listVacancyApplications(session: SessionPayload, vacancyId
         documentType: r.seeker.documentType,
         emailVerified: !!r.seeker.emailVerifiedAt,
         phoneVerified: !!r.seeker.phoneVerifiedAt,
+        telegramVerified: !!r.seeker.telegramVerifiedAt,
       },
     })),
   });
@@ -679,6 +688,8 @@ export async function listSeekersForReview(opts: { status?: string; q?: string; 
       status: true,
       emailVerifiedAt: true,
       phoneVerifiedAt: true,
+      telegramVerifiedAt: true,
+      telegramUsername: true,
       documentType: true,
       documentName: true,
       rejectionReason: true,
@@ -700,6 +711,8 @@ export async function listSeekersForReview(opts: { status?: string; q?: string; 
     status: r.status,
     emailVerified: !!r.emailVerifiedAt,
     phoneVerified: !!r.phoneVerifiedAt,
+    telegramVerified: !!r.telegramVerifiedAt,
+    telegramUsername: r.telegramUsername,
     hasDocument: !!r.documentType,
     documentType: r.documentType,
     documentName: r.documentName,
@@ -728,13 +741,22 @@ export async function reviewSeeker(
 ): Promise<Result<true>> {
   const seeker = await db.jobSeeker.findUnique({
     where: { id: seekerId },
-    select: { id: true, status: true, emailVerifiedAt: true, phoneVerifiedAt: true, documentType: true, fullName: true },
+    select: {
+      id: true,
+      status: true,
+      emailVerifiedAt: true,
+      phoneVerifiedAt: true,
+      telegramVerifiedAt: true,
+      documentType: true,
+      fullName: true,
+    },
   });
   if (!seeker) return err("not_found");
   if (seeker.status === (action === "approve" ? "approved" : "rejected")) {
     return ok(true); // نفس الحالة — لا عمل
   }
-  if (!seeker.emailVerifiedAt || !seeker.phoneVerifiedAt || !seeker.documentType) {
+  // العامل الثاني: هاتف موثّق أو محادثة تيليغرام موثّقة (بديل OTP معتمد)
+  if (!seeker.emailVerifiedAt || (!seeker.phoneVerifiedAt && !seeker.telegramVerifiedAt) || !seeker.documentType) {
     return err("bad_transition"); // لا مصادقة قبل اكتمال التحقق الآلي والوثيقة
   }
   if (action === "reject" && !(reason ?? "").trim()) return err("reason_required");

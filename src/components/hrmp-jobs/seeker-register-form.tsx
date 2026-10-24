@@ -2,8 +2,9 @@
 
 // HRMP — معالج تسجيل باحث عن عمل (طلب المالك 2026-10-24): أربع خطوات متتابعة
 // مع مؤشر تقدم واضح. الخطوات الخادمية: إنشاء الحساب (جلسة فورية) → OTP بريد →
-// OTP هاتف → رفع الوثيقة. إعادة الإرسال بعد 45ث، وكل الأخطاء تعرض رسائل
-// i18n محددة لا رموزًا غامضة. وضع التجربة (بلا مزوّد) يظهر الرمز صراحة بتحذير.
+// عامل ثانٍ (OTP هاتف/SMS أو Telegram) → رفع الوثيقة. إعادة الإرسال بعد 45ث،
+// وكل الأخطاء تعرض رسائل i18n محددة لا رموزًا غامضة. وضع التجربة (بلا مزوّد)
+// يظهر الرمز صراحة بتحذير.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,6 +15,7 @@ import {
   LoaderCircle,
   LogIn,
   Mail,
+  Send,
   Smartphone,
   UserRound,
 } from "lucide-react";
@@ -29,6 +31,8 @@ import { useI18n } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 type Step = 1 | 2 | 3 | 4 | 5; // 5 = اكتمال
+type SecondChannel = "phone" | "telegram";
+type TelegramStatus = { linked: boolean; username: string | null; verified: boolean };
 
 const RESEND_COOLDOWN_S = 45;
 
@@ -51,6 +55,10 @@ function registerError(t: (k: string, p?: Record<string, string | number>) => st
     already_verified: "jobs.errors.already_verified",
     provider_not_configured: "jobs.errors.provider_not_configured",
     provider_error: "jobs.errors.provider_not_configured",
+    telegram_not_linked: "jobs.errors.telegram_not_linked",
+    telegram_not_configured: "jobs.errors.telegram_not_configured",
+    telegram_taken: "jobs.errors.telegram_taken",
+    telegram_token_invalid: "jobs.errors.telegram_token_invalid",
     doc_too_large: "jobs.errors.doc_too_large",
     doc_bad_mime: "jobs.errors.doc_bad_mime",
     doc_bad_type: "jobs.errors.doc_bad_type",
@@ -88,8 +96,17 @@ export function SeekerRegisterForm() {
   // الخطوتان 2/3: OTP
   const [otpCode, setOtpCode] = useState("");
   const [devCode, setDevCode] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
+  const [otpBusy, setOtpBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // الخطوة 3: العامل الثاني — SMS أو Telegram
+  const [secondChannel, setSecondChannel] = useState<SecondChannel>("phone");
+  const [telegram, setTelegram] = useState<TelegramStatus | null>(null);
+  const [telegramBusy, setTelegramBusy] = useState(false);
+  const [telegramLink, setTelegramLink] = useState<string | null>(null);
+  const telegramTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // الخطوة 4: الوثيقة
   const [docType, setDocType] = useState("national_id");
@@ -98,6 +115,7 @@ export function SeekerRegisterForm() {
   useEffect(() => {
     return () => {
       if (cooldownTimer.current) clearInterval(cooldownTimer.current);
+      if (telegramTimer.current) clearInterval(telegramTimer.current);
     };
   }, []);
 
@@ -115,13 +133,44 @@ export function SeekerRegisterForm() {
     }, 1000);
   }, []);
 
+  const loadTelegramStatus = useCallback(async () => {
+    const res = await fetch("/api/jobs/seeker/telegram/status", { cache: "no-store" }).catch(() => null);
+    if (!res?.ok) return;
+    const data = (await res.json().catch(() => null)) as
+      | { linked?: boolean; username?: string | null; verified?: boolean }
+      | null;
+    if (!data) return;
+    setTelegram({
+      linked: !!data.linked,
+      username: data.username ?? null,
+      verified: !!data.verified,
+    });
+  }, []);
+
+  // استطلاع حالة الربط كل 3 ثوانٍ أثناء خطوة Telegram (حتى يضغط المستخدم Start)
+  useEffect(() => {
+    if (step !== 3 || secondChannel !== "telegram") return;
+    void loadTelegramStatus();
+    telegramTimer.current = setInterval(() => {
+      void loadTelegramStatus();
+    }, 3000);
+    return () => {
+      if (telegramTimer.current) {
+        clearInterval(telegramTimer.current);
+        telegramTimer.current = null;
+      }
+    };
+  }, [step, secondChannel, loadTelegramStatus]);
+
   async function createAccount() {
     setBusy(true);
     try {
       const r = await postJson("/api/jobs/seeker/register", { fullName, email, phone, password, locale });
       if (r.ok) {
-        await sendOtp("email");
+        // الحساب أُنشئ والجلسة صالحة — ننتقل للبريد حتى لو تعذّر الإرسال،
+        // فيبقى للباحث زر إعادة الإرسال بدل أن يعلق في خطوة إنشاء حساب مكتملة.
         setStep(2);
+        await sendOtp("email").catch(() => null);
       } else {
         toast({ variant: "destructive", description: registerError(t, r.data?.error ?? "internal_error") });
       }
@@ -130,30 +179,45 @@ export function SeekerRegisterForm() {
     }
   }
 
-  async function sendOtp(channel: "email" | "phone") {
-    const r = await postJson("/api/jobs/seeker/otp/send", { channel });
-    if (r.ok) {
-      setDevCode(r.data?.devCode ?? null);
-      setOtpCode("");
-      startCooldown();
-      if (r.data?.devCode) {
-        toast({ description: t("jobs.register.otpDevWarning", { code: r.data.devCode }) });
+  async function sendOtp(channel: "email" | "phone" | "telegram") {
+    setOtpBusy(true);
+    try {
+      const r = await postJson("/api/jobs/seeker/otp/send", { channel });
+      if (r.ok) {
+        setDevCode(r.data?.devCode ?? null);
+        setOtpCode("");
+        setCodeSent(true);
+        startCooldown();
+        if (r.data?.devCode) {
+          toast({ description: t("jobs.register.otpDevWarning", { code: r.data.devCode }) });
+        }
+      } else {
+        toast({ variant: "destructive", description: registerError(t, r.data?.error ?? "internal_error") });
+        throw new Error(r.data?.error ?? "send_failed");
       }
-    } else {
-      toast({ variant: "destructive", description: registerError(t, r.data?.error ?? "internal_error") });
-      throw new Error(r.data?.error ?? "send_failed");
+    } finally {
+      setOtpBusy(false);
     }
   }
 
-  async function verifyOtp(channel: "email" | "phone") {
+  async function verifyOtp(channel: "email" | "phone" | "telegram") {
     setBusy(true);
     try {
       const r = await postJson("/api/jobs/seeker/otp/verify", { channel, code: otpCode });
       if (r.ok) {
         toast({ description: t("jobs.register.otpVerified") });
         setDevCode(null);
+        setOtpCode("");
+        setCodeSent(false);
         if (channel === "email") {
-          await sendOtp("phone");
+          // لا نرسل OTP الهاتف تلقائيًا: قد لا يوجد مزوّد SMS. الباحث يختار
+          // SMS أو Telegram في الخطوة التالية (طلب المالك 2026-10-24).
+          if (cooldownTimer.current) {
+            clearInterval(cooldownTimer.current);
+            cooldownTimer.current = null;
+          }
+          setCooldown(0);
+          setTelegramLink(null);
           setStep(3);
         } else {
           setStep(4);
@@ -163,6 +227,48 @@ export function SeekerRegisterForm() {
       }
     } finally {
       setBusy(false);
+    }
+  }
+
+  function switchSecondChannel(channel: SecondChannel) {
+    if (channel === secondChannel) return;
+    setSecondChannel(channel);
+    setCodeSent(false);
+    setOtpCode("");
+    setDevCode(null);
+    setCooldown(0);
+    setTelegramLink(null);
+    if (cooldownTimer.current) {
+      clearInterval(cooldownTimer.current);
+      cooldownTimer.current = null;
+    }
+  }
+
+  async function connectTelegram() {
+    setTelegramBusy(true);
+    try {
+      const res = await fetch("/api/jobs/seeker/telegram/link", { method: "POST" }).catch(() => null);
+      const data = (await res?.json().catch(() => null)) as
+        | { linked?: boolean; username?: string | null; verified?: boolean; deepLink?: string; error?: string }
+        | null;
+      if (!res?.ok) {
+        toast({ variant: "destructive", description: registerError(t, data?.error ?? "internal_error") });
+        return;
+      }
+      if (data?.linked) {
+        setTelegram({
+          linked: true,
+          username: data.username ?? null,
+          verified: !!data.verified,
+        });
+        return;
+      }
+      if (data?.deepLink) {
+        setTelegramLink(data.deepLink);
+        window.open(data.deepLink, "_blank", "noopener,noreferrer");
+      }
+    } finally {
+      setTelegramBusy(false);
     }
   }
 
@@ -191,7 +297,7 @@ export function SeekerRegisterForm() {
   const stepMeta = [
     { n: 1, labelKey: "jobs.register.stepAccount", Icon: UserRound },
     { n: 2, labelKey: "jobs.register.stepEmail", Icon: Mail },
-    { n: 3, labelKey: "jobs.register.stepPhone", Icon: Smartphone },
+    { n: 3, labelKey: "jobs.register.stepSecondFactor", Icon: Smartphone },
     { n: 4, labelKey: "jobs.register.stepDoc", Icon: FileUp },
   ];
   const progress = step === 5 ? 100 : Math.round(((step - 1) / 4) * 100);
@@ -317,62 +423,182 @@ export function SeekerRegisterForm() {
           <>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
-                {step === 2 ? <Mail className="size-5 text-primary" aria-hidden /> : <Smartphone className="size-5 text-primary" aria-hidden />}
-                {t(step === 2 ? "jobs.register.stepEmail" : "jobs.register.stepPhone")}
+                {step === 2 ? (
+                  <Mail className="size-5 text-primary" aria-hidden />
+                ) : secondChannel === "telegram" ? (
+                  <Send className="size-5 text-primary" aria-hidden />
+                ) : (
+                  <Smartphone className="size-5 text-primary" aria-hidden />
+                )}
+                {t(step === 2 ? "jobs.register.stepEmail" : "jobs.register.stepSecondFactor")}
               </CardTitle>
               <CardDescription>
-                {t(step === 2 ? "jobs.register.otpSentEmail" : "jobs.register.otpSentPhone", {
-                  [step === 2 ? "email" : "phone"]: step === 2 ? email : phone,
-                })}
+                {step === 2
+                  ? t(codeSent ? "jobs.register.otpSentEmail" : "jobs.register.otpEmailPrompt", { email })
+                  : t("jobs.register.secondFactorHint")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {devCode && (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-center">
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-                    {t("jobs.register.otpDevWarning", { code: devCode })}
-                  </p>
+              {step === 3 && (
+                <div className="grid grid-cols-2 gap-2" role="group" aria-label={t("jobs.register.secondFactorHint")}>
+                  <Button
+                    type="button"
+                    variant={secondChannel === "phone" ? "default" : "outline"}
+                    className="gap-2 font-semibold"
+                    onClick={() => switchSecondChannel("phone")}
+                    disabled={busy || otpBusy}
+                  >
+                    <Smartphone className="size-4" aria-hidden />
+                    {t("jobs.register.channelPhone")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={secondChannel === "telegram" ? "default" : "outline"}
+                    className="gap-2 font-semibold"
+                    onClick={() => switchSecondChannel("telegram")}
+                    disabled={busy || otpBusy}
+                  >
+                    <Send className="size-4" aria-hidden />
+                    {t("jobs.register.channelTelegram")}
+                  </Button>
                 </div>
               )}
-              <div className="space-y-2">
-                <Label htmlFor="reg-otp">{t("jobs.register.otpEnter")}</Label>
-                <Input
-                  id="reg-otp"
-                  inputMode="numeric"
-                  dir="ltr"
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="000000"
-                  className="text-center text-lg font-bold tracking-[0.4em]"
-                  autoComplete="one-time-code"
-                />
-              </div>
-              <Button
-                className="w-full gap-2 font-bold"
-                onClick={() => verifyOtp(step === 2 ? "email" : "phone")}
-                disabled={busy || otpCode.length !== 6}
-              >
-                {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
-                <BadgeCheck className="size-4" aria-hidden />
-                {t("jobs.register.otpVerify")}
-              </Button>
-              <div className="text-center">
-                {cooldown > 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t("jobs.register.otpResendIn", { seconds: cooldown })}
+
+              {step === 2 && !codeSent && (
+                <Button
+                  className="w-full gap-2 font-bold"
+                  onClick={() => void sendOtp("email").catch(() => null)}
+                  disabled={busy || otpBusy}
+                >
+                  {otpBusy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Mail className="size-4" aria-hidden />}
+                  {t("jobs.register.otpSendEmail")}
+                </Button>
+              )}
+
+              {step === 3 && secondChannel === "phone" && !codeSent && (
+                <div className="space-y-3 rounded-lg border border-border/70 p-3">
+                  <p className="text-sm font-medium text-muted-foreground" dir="ltr">
+                    {phone}
                   </p>
-                ) : (
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs"
-                    disabled={busy}
-                    onClick={() => void sendOtp(step === 2 ? "email" : "phone").catch(() => null)}
+                    className="w-full gap-2 font-bold"
+                    onClick={() => void sendOtp("phone").catch(() => null)}
+                    disabled={busy || otpBusy}
                   >
-                    {t("jobs.register.otpResend")}
+                    {otpBusy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Smartphone className="size-4" aria-hidden />}
+                    {t("jobs.register.otpSendPhone")}
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
+
+              {step === 3 && secondChannel === "telegram" && !telegram?.linked && (
+                <div className="space-y-3 rounded-lg border border-border/70 p-3">
+                  <p className="text-sm leading-relaxed text-muted-foreground">{t("jobs.register.telegramConnectHint")}</p>
+                  <Button
+                    className="w-full gap-2 font-bold"
+                    onClick={() => void connectTelegram()}
+                    disabled={busy || telegramBusy}
+                  >
+                    {telegramBusy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
+                    {t("jobs.register.telegramConnect")}
+                  </Button>
+                  {telegramLink && (
+                    <Button asChild variant="outline" className="w-full gap-2">
+                      <a href={telegramLink} target="_blank" rel="noreferrer">
+                        <Send className="size-4" aria-hidden />
+                        {t("jobs.register.telegramOpen")}
+                      </a>
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground">{t("jobs.register.telegramWaiting")}</p>
+                </div>
+              )}
+
+              {step === 3 && secondChannel === "telegram" && telegram?.linked && (
+                <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-primary">
+                    <CheckCircle2 className="size-4" aria-hidden />
+                    {t("jobs.register.telegramLinked")}
+                  </p>
+                  {telegram.username && (
+                    <p className="text-xs text-muted-foreground" dir="ltr">
+                      @{telegram.username}
+                    </p>
+                  )}
+                  {!codeSent && (
+                    <Button
+                      className="w-full gap-2 font-bold"
+                      onClick={() => void sendOtp("telegram").catch(() => null)}
+                      disabled={busy || otpBusy}
+                    >
+                      {otpBusy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
+                      {t("jobs.register.telegramSend")}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {codeSent && (
+                <>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {step === 2
+                      ? t("jobs.register.otpSentEmail", { email })
+                      : secondChannel === "phone"
+                        ? t("jobs.register.otpSentPhone", { phone })
+                        : t("jobs.register.otpSentTelegram")}
+                  </p>
+                  {devCode && (
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-center">
+                      <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                        {t("jobs.register.otpDevWarning", { code: devCode })}
+                      </p>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-otp">{t("jobs.register.otpEnter")}</Label>
+                    <Input
+                      id="reg-otp"
+                      inputMode="numeric"
+                      dir="ltr"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="000000"
+                      className="text-center text-lg font-bold tracking-[0.4em]"
+                      autoComplete="one-time-code"
+                    />
+                  </div>
+                  <Button
+                    className="w-full gap-2 font-bold"
+                    onClick={() => verifyOtp(step === 2 ? "email" : secondChannel)}
+                    disabled={busy || otpCode.length !== 6}
+                  >
+                    {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
+                    <BadgeCheck className="size-4" aria-hidden />
+                    {t("jobs.register.otpVerify")}
+                  </Button>
+                  <div className="text-center">
+                    {cooldown > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t("jobs.register.otpResendIn", { seconds: cooldown })}
+                      </p>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                        disabled={busy || otpBusy || (step === 3 && secondChannel === "telegram" && !telegram?.linked)}
+                        onClick={() => {
+                          const ch = step === 2 ? "email" : secondChannel;
+                          if (ch === "telegram" && !telegram?.linked) return;
+                          void sendOtp(ch).catch(() => null);
+                        }}
+                      >
+                        {t("jobs.register.otpResend")}
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
             </CardContent>
           </>
         )}
